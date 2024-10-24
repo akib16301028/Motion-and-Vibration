@@ -1,5 +1,6 @@
 import pandas as pd
 import streamlit as st
+from datetime import datetime
 import requests
 
 # Function to extract the first part of the SiteName before the first underscore
@@ -21,11 +22,7 @@ def merge_motion_vibration(motion_df, vibration_df):
     return merged_df
 
 # Function to count entries for Motion and Vibration per site alias and zone
-def count_entries_by_zone(merged_df, start_time_filter=None):
-    # Apply start time filter if provided
-    if start_time_filter:
-        merged_df = merged_df[merged_df['Start Time'] > start_time_filter]
-
+def count_entries_by_zone(merged_df):
     motion_count = merged_df[merged_df['Type'] == 'Motion'].groupby(['Zone', 'Site Alias']).size().reset_index(name='Motion Count')
     vibration_count = merged_df[merged_df['Type'] == 'Vibration'].groupby(['Zone', 'Site Alias']).size().reset_index(name='Vibration Count')
     
@@ -33,49 +30,54 @@ def count_entries_by_zone(merged_df, start_time_filter=None):
     final_df = pd.merge(motion_count, vibration_count, on=['Zone', 'Site Alias'], how='outer').fillna(0)
     final_df['Motion Count'] = final_df['Motion Count'].astype(int)
     final_df['Vibration Count'] = final_df['Vibration Count'].astype(int)
-
+    
+    # Calculate the totals
+    total_motion = final_df['Motion Count'].sum()
+    total_vibration = final_df['Vibration Count'].sum()
+    
+    # Add the total row
+    total_row = pd.DataFrame([['Total', '', total_motion, total_vibration]], columns=['Zone', 'Site Alias', 'Motion Count', 'Vibration Count'])
+    final_df = pd.concat([final_df, total_row], ignore_index=True)
+    
     return final_df
-
-# Function to display detailed entries for a specific site
-def display_detailed_entries(merged_df, site_alias):
-    filtered = merged_df[merged_df['Site Alias'] == site_alias][['Site Alias', 'Start Time', 'End Time']]
-    if not filtered.empty:
-        st.table(filtered)
-    else:
-        st.write("No data for this site.")
 
 # Streamlit app
 st.title('Odin-s-Eye - Motion & Vibration Alarm Monitoring')
 
+# File upload sections
 motion_alarm_file = st.file_uploader("Upload the Motion Alarm Data", type=["xlsx"])
 vibration_alarm_file = st.file_uploader("Upload the Vibration Alarm Data", type=["xlsx"])
+motion_current_file = st.file_uploader("Upload the Motion Current Alarms Data", type=["xlsx"])
+vibration_current_file = st.file_uploader("Upload the Vibration Current Alarms Data", type=["xlsx"])
 
-if motion_alarm_file and vibration_alarm_file:
+# Date and Time widgets
+selected_date = st.date_input("Select Date", value=datetime.now().date())
+selected_time = st.time_input("Select Time", value=datetime.now().time())
+
+if motion_alarm_file and vibration_alarm_file and motion_current_file and vibration_current_file:
     # Load the data
     motion_df = pd.read_excel(motion_alarm_file, header=2)
     vibration_df = pd.read_excel(vibration_alarm_file, header=2)
+    motion_current_df = pd.read_excel(motion_current_file, header=2)
+    vibration_current_df = pd.read_excel(vibration_current_file, header=2)
 
     # Merge data
     merged_df = merge_motion_vibration(motion_df, vibration_df)
 
-    # Start time filter input
-    start_time_input = st.sidebar.text_input("Enter Start Time (YYYY-MM-DD HH:MM:SS)", "")
-    start_time_filter = pd.to_datetime(start_time_input, errors='coerce') if start_time_input else None
+    # Display summarized table with counts
+    st.write("### Motion and Vibration Counts by Zone and Site Alias")
+    summary_df = count_entries_by_zone(merged_df)
+    
+    # Filter based on selected date and time
+    filter_datetime = datetime.combine(selected_date, selected_time)
+    filtered_summary_df = summary_df[summary_df['Start Time'] > filter_datetime]
 
-    # Display summarized count table for each zone
-    summary_df = count_entries_by_zone(merged_df, start_time_filter)
+    # Show the filtered summary
+    st.table(filtered_summary_df)
 
-    zones = summary_df['Zone'].unique()
-    for zone in zones:
-        st.write(f"### Zone: {zone}")
-        zone_df = summary_df[summary_df['Zone'] == zone]
-        st.table(zone_df)
-
-    # Interactive search for specific sites
-    site_search = st.sidebar.text_input("Search for a specific site alias (case-sensitive)")
-    if site_search:
-        st.sidebar.write("Showing detailed data for:", site_search)
-        display_detailed_entries(merged_df, site_search)
+    # Add a download button for the summary (optional)
+    csv = summary_df.to_csv(index=False).encode('utf-8')
+    st.download_button(label="Download Summary Data as CSV", data=csv, file_name='summary_data.csv', mime='text/csv')
 
 else:
     st.write("Please upload all required files.")
