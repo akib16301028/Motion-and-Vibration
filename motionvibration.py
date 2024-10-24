@@ -3,12 +3,22 @@ import streamlit as st
 from datetime import datetime
 import requests
 
-# Function to merge Current Alarms data for Motion and Vibration
-def merge_current_alarms(motion_current_df, vibration_current_df):
-    motion_current_df['Type'] = 'Motion'
-    vibration_current_df['Type'] = 'Vibration'
+# Function to extract the first part of the SiteName before the first underscore
+def extract_site(site_name):
+    return site_name.split('_')[0] if pd.notnull(site_name) and '_' in site_name else site_name
+
+# Function to merge Motion and Vibration data
+def merge_motion_vibration(motion_df, vibration_df):
+    motion_df['Start Time'] = pd.to_datetime(motion_df['Start Time'], errors='coerce')
+    motion_df['End Time'] = pd.to_datetime(motion_df['End Time'], errors='coerce')
+
+    vibration_df['Start Time'] = pd.to_datetime(vibration_df['Start Time'], errors='coerce')
+    vibration_df['End Time'] = pd.to_datetime(vibration_df['End Time'], errors='coerce')
+
+    motion_df['Type'] = 'Motion'
+    vibration_df['Type'] = 'Vibration'
     
-    merged_df = pd.concat([motion_current_df, vibration_current_df], ignore_index=True)
+    merged_df = pd.concat([motion_df, vibration_df], ignore_index=True)
     return merged_df
 
 # Function to count entries for Motion and Vibration per site alias and zone
@@ -32,15 +42,23 @@ def count_entries_by_zone(merged_df):
     return final_df
 
 # Function to display detailed entries for a specific site
-def display_detailed_entries(merged_df, site_alias):
+def display_detailed_entries(motion_df, vibration_df, site_alias):
     st.write(f"Details for site alias: {site_alias}")
     
-    site_filtered = merged_df[merged_df['Site Alias'] == site_alias][['Site Alias', 'Start Time', 'End Time', 'Type']]
+    motion_filtered = motion_df[motion_df['Site Alias'] == site_alias][['Site Alias', 'Start Time', 'End Time']]
+    vibration_filtered = vibration_df[vibration_df['Site Alias'] == site_alias][['Site Alias', 'Start Time', 'End Time']]
     
-    if not site_filtered.empty:
-        st.table(site_filtered)
+    st.write("**Motion**")
+    if not motion_filtered.empty:
+        st.table(motion_filtered)
     else:
-        st.write("No alarms for this site.")
+        st.write("No motion alarms for this site.")
+    
+    st.write("**Vibration**")
+    if not vibration_filtered.empty:
+        st.table(vibration_filtered)
+    else:
+        st.write("No vibration alarms for this site.")
 
 # Function to send Telegram notification
 def send_telegram_notification(message, bot_token, chat_id):
@@ -56,21 +74,20 @@ def send_telegram_notification(message, bot_token, chat_id):
 # Streamlit app
 st.title('Odin-s-Eye - Motion & Vibration Alarm Monitoring')
 
-# File upload sections
+motion_alarm_file = st.file_uploader("Upload the Motion Alarm Data", type=["xlsx"])
+vibration_alarm_file = st.file_uploader("Upload the Vibration Alarm Data", type=["xlsx"])
 motion_current_file = st.file_uploader("Upload the Motion Current Alarms Data", type=["xlsx"])
 vibration_current_file = st.file_uploader("Upload the Vibration Current Alarms Data", type=["xlsx"])
-motion_report_file = st.file_uploader("Upload the Motion Report Data", type=["xlsx"])
-vibration_report_file = st.file_uploader("Upload the Vibration Report Data", type=["xlsx"])
 
-if motion_current_file and vibration_current_file and motion_report_file and vibration_report_file:
+if motion_alarm_file and vibration_alarm_file and motion_current_file and vibration_current_file:
     # Load the data
+    motion_df = pd.read_excel(motion_alarm_file, header=2)
+    vibration_df = pd.read_excel(vibration_alarm_file, header=2)
     motion_current_df = pd.read_excel(motion_current_file, header=2)
     vibration_current_df = pd.read_excel(vibration_current_file, header=2)
-    motion_report_df = pd.read_excel(motion_report_file, header=2)
-    vibration_report_df = pd.read_excel(vibration_report_file, header=2)
 
-    # Merge Current Alarms data
-    merged_df = merge_current_alarms(motion_current_df, vibration_current_df)
+    # Merge data
+    merged_df = merge_motion_vibration(motion_df, vibration_df)
 
     # Display summarized table with counts
     st.write("### Motion and Vibration Counts by Zone and Site Alias")
@@ -82,14 +99,14 @@ if motion_current_file and vibration_current_file and motion_report_file and vib
 
     if site_search:
         st.sidebar.write("Showing detailed data for:", site_search)
-        display_detailed_entries(merged_df, site_search)
+        display_detailed_entries(motion_df, vibration_df, site_search)
 
     # Telegram notification feature
     if st.sidebar.button("Send Telegram Notification"):
         # Prepare notification message
         zones = summary_df['Zone'].unique()
-        bot_token = "YOUR_BOT_TOKEN"  # Your bot token
-        chat_id = "YOUR_CHAT_ID"  # Your group ID
+        bot_token = "7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME"  # Your bot token
+        chat_id = "-1001509039244"  # Your group ID
 
         for zone in zones:
             zone_df = summary_df[summary_df['Zone'] == zone]
