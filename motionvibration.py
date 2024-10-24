@@ -23,23 +23,17 @@ def merge_motion_vibration(motion_df, vibration_df):
 
 # Function to count entries for Motion and Vibration per site alias and zone
 def count_entries_by_zone(merged_df):
-    motion_count = merged_df[merged_df['Type'] == 'Motion'].groupby(['Zone', 'Site Alias']).size().reset_index(name='Motion Count')
-    vibration_count = merged_df[merged_df['Type'] == 'Vibration'].groupby(['Zone', 'Site Alias']).size().reset_index(name='Vibration Count')
+    counts = merged_df.groupby(['Zone', 'Site Alias', 'Type']).size().unstack(fill_value=0).reset_index()
     
-    # Merge motion and vibration counts by Zone and Site Alias
-    final_df = pd.merge(motion_count, vibration_count, on=['Zone', 'Site Alias'], how='outer').fillna(0)
-    final_df['Motion Count'] = final_df['Motion Count'].astype(int)
-    final_df['Vibration Count'] = final_df['Vibration Count'].astype(int)
-    
-    # Calculate the totals
-    total_motion = final_df['Motion Count'].sum()
-    total_vibration = final_df['Vibration Count'].sum()
+    # Calculate totals
+    counts['Total'] = counts.sum(axis=1)
     
     # Add the total row
-    total_row = pd.DataFrame([['Total', '', total_motion, total_vibration]], columns=['Zone', 'Site Alias', 'Motion Count', 'Vibration Count'])
-    final_df = pd.concat([final_df, total_row], ignore_index=True)
+    total_row = pd.DataFrame([['Total', '', counts['Motion'].sum(), counts['Vibration'].sum(), counts['Total'].sum()]], 
+                             columns=['Zone', 'Site Alias', 'Motion', 'Vibration', 'Total'])
+    counts = pd.concat([counts, total_row], ignore_index=True)
     
-    return final_df
+    return counts
 
 # Streamlit app
 st.title('Odin-s-Eye - Motion & Vibration Alarm Monitoring')
@@ -68,12 +62,8 @@ if motion_alarm_file and vibration_alarm_file and motion_current_file and vibrat
     st.write("### Motion and Vibration Counts by Zone and Site Alias")
     summary_df = count_entries_by_zone(merged_df)
     
-    # Filter based on selected date and time
-    filter_datetime = datetime.combine(selected_date, selected_time)
-    filtered_summary_df = summary_df[summary_df['Start Time'] > filter_datetime]
-
-    # Show the filtered summary
-    st.table(filtered_summary_df)
+    # Show the filtered summary (all data, as no specific filtering is applied here)
+    st.table(summary_df)
 
     # Add a download button for the summary (optional)
     csv = summary_df.to_csv(index=False).encode('utf-8')
