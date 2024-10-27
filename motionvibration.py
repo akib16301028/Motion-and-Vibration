@@ -45,16 +45,22 @@ def count_entries_by_zone(merged_df, start_time_filter=None):
     final_df['Motion Count'] = final_df['Motion Count'].astype(int)
     final_df['Vibration Count'] = final_df['Vibration Count'].astype(int)
 
+    # Add Total Row
+    total_row = pd.DataFrame(final_df[['Motion Count', 'Vibration Count']].sum()).T
+    total_row['Zone'] = 'Total'
+    total_row['Site Alias'] = ''
+    final_df = pd.concat([final_df, total_row], ignore_index=True)
+
     return final_df
 
 # Function to display detailed entries for a specific site alias
 def display_detailed_entries(merged_df, site_alias):
     filtered = merged_df[merged_df['Site Alias'] == site_alias][['Site Alias', 'Start Time', 'End Time', 'Type']]
     if not filtered.empty:
-        st.write(f"Detailed entries for Site Alias: {site_alias}")
-        st.table(filtered)
+        st.sidebar.write(f"Detailed entries for Site Alias: {site_alias}")
+        st.sidebar.table(filtered)
     else:
-        st.write("No data for this site.")
+        st.sidebar.write("No data for this site.")
 
 # Streamlit app
 st.title('Odin-s-Eye - Motion & Vibration Alarm Monitoring')
@@ -80,7 +86,7 @@ if report_motion_file and current_motion_file and report_vibration_file and curr
     selected_time = st.sidebar.time_input("Select Start Time", value=datetime.now().time())
     start_time_filter = datetime.combine(selected_date, selected_time)
 
-    # Display summarized count table for each zone
+    # Display summarized count table for each zone with inline total row
     summary_df = count_entries_by_zone(merged_df, start_time_filter)
 
     zones = summary_df['Zone'].unique()
@@ -88,9 +94,6 @@ if report_motion_file and current_motion_file and report_vibration_file and curr
         st.write(f"### Zone: {zone}")
         zone_df = summary_df[summary_df['Zone'] == zone]
         st.table(zone_df)
-        total_row = pd.DataFrame(zone_df[['Motion Count', 'Vibration Count']].sum()).T
-        total_row.index = ['Total']
-        st.table(total_row)
 
     # Interactive search for specific sites
     site_search = st.sidebar.text_input("Search for a specific site alias")
