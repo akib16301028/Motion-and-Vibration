@@ -6,6 +6,9 @@ import requests
 # Load username data from repository
 username_df = pd.read_excel("USER NAME.xlsx")
 
+# Define zone priority order
+zone_priority = ["Sylhet", "Gazipur", "Shariatpur", "Narayanganj", "Faridpur"]
+
 # Function to preprocess current alarm files to match expected column names
 def preprocess_current_alarm(df, alarm_type):
     df = df.rename(columns={"Alarm Time": "Start Time"})
@@ -42,22 +45,21 @@ def count_entries_by_zone(merged_df, start_time_filter=None):
     
     return final_df
 
-# Function to send Telegram notification with username mention
-def send_telegram_notification(zone, zone_df, total_motion, total_vibration):
+# Function to send Telegram notification with prioritized zone order
+def send_telegram_notification(zone, zone_df, total_motion, total_vibration, usernames):
     chat_id = "-4537588687"
     bot_token = "7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME"
     
-    # Fetch the username for the given zone
-    username = username_df.loc[username_df['Zone'] == zone, 'Name'].values
-    username_mention = f"@{username[0]}" if username.size > 0 else ""
+    # Construct message with multiple contacts if needed
+    username_mentions = " ".join([f"@{name}" for name in usernames])
     
-    # Construct message
+    # Message structure
     message = f"**Zone: {zone}**\n\n"
     message += f"Total Motion Alarm count: {total_motion}\nTotal Vibration Alarm count: {total_vibration}\n\n"
     for _, row in zone_df.iterrows():
         message += f"**{row['Site Alias']}** : Motion Count: {row['Motion Count']}, Vibration Count: {row['Vibration Count']}\n"
-    message += f"\n{username_mention} please take care."
-    
+    message += f"\n{username_mentions} please take care."
+
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     data = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
     
@@ -98,12 +100,17 @@ if report_motion_file and current_motion_file and report_vibration_file and curr
         # Telegram notification button
         if st.button("Telegram Notification", help="Send alarm summary to Telegram"):
             summary_df = count_entries_by_zone(merged_df, start_time_filter)
-            zones = summary_df['Zone'].unique()
+            zones = sorted(summary_df['Zone'].unique(), key=lambda z: (zone_priority.index(z) if z in zone_priority else float('inf')))
+            
             for zone in zones:
                 zone_df = summary_df[summary_df['Zone'] == zone]
                 total_motion = zone_df['Motion Count'].sum()
                 total_vibration = zone_df['Vibration Count'].sum()
-                send_telegram_notification(zone, zone_df, total_motion, total_vibration)
+
+                # Get all usernames for the zone
+                usernames = username_df[username_df['Zone'] == zone]['Name'].dropna().unique()
+                
+                send_telegram_notification(zone, zone_df, total_motion, total_vibration, usernames)
 
     summary_df = count_entries_by_zone(merged_df, start_time_filter)
 
