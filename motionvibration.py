@@ -41,7 +41,7 @@ def count_entries_by_zone(merged_df, start_time_filter=None):
     for zone, zone_df in final_df.groupby('Zone'):
         # Calculate total for the current zone
         total_row = pd.DataFrame({
-            'Zone': [''],  # Omit the zone name for the total row
+            'Zone': [zone],
             'Site Alias': ['Total'],
             'Motion Count': [zone_df['Motion Count'].sum()],
             'Vibration Count': [zone_df['Vibration Count'].sum()]
@@ -49,7 +49,7 @@ def count_entries_by_zone(merged_df, start_time_filter=None):
         # Append the total row to the zone-specific DataFrame
         zone_df = pd.concat([zone_df, total_row], ignore_index=True)
         final_df_list.append(zone_df)
-
+    
     # Combine all zones' DataFrames back into one
     return pd.concat(final_df_list, ignore_index=True)
 
@@ -89,13 +89,7 @@ if report_motion_file and current_motion_file and report_vibration_file and curr
     for zone in zones:
         st.write(f"### Zone: {zone}")
         zone_df = summary_df[summary_df['Zone'] == zone]
-
-        # Bold headers and total rows, and display as a single table
-        styled_table = zone_df.style.set_table_attributes('style="font-weight: bold;"').set_table_styles(
-            [{'selector': 'thead th', 'props': [('font-weight', 'bold')]}]
-        ).set_properties(subset=['Site Alias', 'Motion Count', 'Vibration Count'], **{'font-weight': 'bold'})
-        
-        st.table(styled_table)
+        st.table(zone_df)
 
     site_search = st.sidebar.text_input("Search for a specific site alias")
     if site_search:
