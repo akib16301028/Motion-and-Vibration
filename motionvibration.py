@@ -36,22 +36,7 @@ def count_entries_by_zone(merged_df, start_time_filter=None):
     final_df['Motion Count'] = final_df['Motion Count'].astype(int)
     final_df['Vibration Count'] = final_df['Vibration Count'].astype(int)
     
-    # Group by Zone and add a total row for each zone
-    final_df_list = []
-    for zone, zone_df in final_df.groupby('Zone'):
-        # Calculate total for the current zone
-        total_row = pd.DataFrame({
-            'Zone': [zone],
-            'Site Alias': ['Total'],
-            'Motion Count': [zone_df['Motion Count'].sum()],
-            'Vibration Count': [zone_df['Vibration Count'].sum()]
-        })
-        # Append the total row to the zone-specific DataFrame
-        zone_df = pd.concat([zone_df, total_row], ignore_index=True)
-        final_df_list.append(zone_df)
-    
-    # Combine all zones' DataFrames back into one
-    return pd.concat(final_df_list, ignore_index=True)
+    return final_df
 
 # Function to display detailed entries for a specific site alias
 def display_detailed_entries(merged_df, site_alias):
@@ -89,7 +74,17 @@ if report_motion_file and current_motion_file and report_vibration_file and curr
     for zone in zones:
         st.write(f"### Zone: {zone}")
         zone_df = summary_df[summary_df['Zone'] == zone]
-        st.table(zone_df)
+
+        # Calculate total counts for the zone
+        total_motion = zone_df['Motion Count'].sum()
+        total_vibration = zone_df['Vibration Count'].sum()
+
+        # Display total counts
+        st.write(f"Total Motion Alarm count: {total_motion}")
+        st.write(f"Total Vibration Alarm count: {total_vibration}")
+
+        # Display the detailed table
+        st.table(zone_df[['Zone', 'Site Alias', 'Motion Count', 'Vibration Count']])
 
     site_search = st.sidebar.text_input("Search for a specific site alias")
     if site_search:
