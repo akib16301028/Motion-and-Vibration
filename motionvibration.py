@@ -90,10 +90,12 @@ if report_motion_file and current_motion_file and report_vibration_file and curr
         st.write(f"### Zone: {zone}")
         zone_df = summary_df[summary_df['Zone'] == zone]
 
-        # Bold headers and total rows
-        st.table(zone_df.style.set_table_attributes('style="font-weight: bold;"').set_table_styles(
+        # Bold headers and total rows, and display as a single table
+        styled_table = zone_df.style.set_table_attributes('style="font-weight: bold;"').set_table_styles(
             [{'selector': 'thead th', 'props': [('font-weight', 'bold')]}]
-        ))
+        ).set_properties(subset=['Site Alias'], **{'font-weight': 'bold'}, subset=['Motion Count', 'Vibration Count'])
+        
+        st.table(styled_table)
 
     site_search = st.sidebar.text_input("Search for a specific site alias")
     if site_search:
