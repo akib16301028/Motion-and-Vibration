@@ -1,10 +1,6 @@
 import pandas as pd
 import streamlit as st
-from datetime import datetime
-
-# Function to extract the first part of the SiteName before the first underscore
-def extract_site(site_name):
-    return site_name.split('_')[0] if pd.notnull(site_name) and '_' in site_name else site_name
+from datetime import datetime, time
 
 # Function to preprocess current alarm files to match expected column names
 def preprocess_current_alarm(df, alarm_type):
@@ -45,10 +41,10 @@ def count_entries_by_zone(merged_df, start_time_filter=None):
     final_df['Motion Count'] = final_df['Motion Count'].astype(int)
     final_df['Vibration Count'] = final_df['Vibration Count'].astype(int)
 
-    # Add Total Row
-    total_row = pd.DataFrame(final_df[['Motion Count', 'Vibration Count']].sum()).T
+    # Add Total Row within each table
+    total_row = final_df[['Motion Count', 'Vibration Count']].sum().to_frame().T
     total_row['Zone'] = 'Total'
-    total_row['Site Alias'] = ''
+    total_row['Site Alias'] = 'All'
     final_df = pd.concat([final_df, total_row], ignore_index=True)
 
     return final_df
@@ -81,9 +77,9 @@ if report_motion_file and current_motion_file and report_vibration_file and curr
     # Merge data
     merged_df = merge_motion_vibration(report_motion_df, current_motion_df, report_vibration_df, current_vibration_df)
 
-    # Date and time filter input
+    # Date and time filter input with persistence
     selected_date = st.sidebar.date_input("Select Start Date", value=datetime.now().date())
-    selected_time = st.sidebar.time_input("Select Start Time", value=datetime.now().time())
+    selected_time = st.sidebar.time_input("Select Start Time", value=time(0, 0))
     start_time_filter = datetime.combine(selected_date, selected_time)
 
     # Display summarized count table for each zone with inline total row
