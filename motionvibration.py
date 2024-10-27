@@ -6,19 +6,28 @@ from datetime import datetime
 def extract_site(site_name):
     return site_name.split('_')[0] if pd.notnull(site_name) and '_' in site_name else site_name
 
+# Function to preprocess current alarm files to match expected column names
+def preprocess_current_alarm(df, alarm_type):
+    df = df.rename(columns={"Alarm Time": "Start Time"})
+    df["End Time"] = None  # Set End Time as None for current alarm entries
+    df["Type"] = alarm_type  # Specify type as either 'Motion' or 'Vibration'
+    return df
+
 # Function to merge motion and vibration data from reports and current alarms
 def merge_motion_vibration(report_motion_df, current_motion_df, report_vibration_df, current_vibration_df):
-    # Add 'Type' column to identify data source
+    # Set 'Type' for report data
     report_motion_df['Type'] = 'Motion'
-    current_motion_df['Type'] = 'Motion'
     report_vibration_df['Type'] = 'Vibration'
-    current_vibration_df['Type'] = 'Vibration'
     
-    # Standardize columns across files
-    for df in [report_motion_df, current_motion_df, report_vibration_df, current_vibration_df]:
+    # Standardize columns across all files
+    for df in [report_motion_df, report_vibration_df]:
         df['Start Time'] = pd.to_datetime(df['Start Time'], errors='coerce')
         df['End Time'] = pd.to_datetime(df['End Time'], errors='coerce')
-    
+
+    # Process current alarm data with renamed Start Time and null End Time
+    current_motion_df = preprocess_current_alarm(current_motion_df, 'Motion')
+    current_vibration_df = preprocess_current_alarm(current_vibration_df, 'Vibration')
+
     # Concatenate all data into a single dataframe
     merged_df = pd.concat([report_motion_df, current_motion_df, report_vibration_df, current_vibration_df], ignore_index=True)
     return merged_df
