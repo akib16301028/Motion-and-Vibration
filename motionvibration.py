@@ -93,7 +93,7 @@ if report_motion_file and current_motion_file and report_vibration_file and curr
         # Bold headers and total rows, and display as a single table
         styled_table = zone_df.style.set_table_attributes('style="font-weight: bold;"').set_table_styles(
             [{'selector': 'thead th', 'props': [('font-weight', 'bold')]}]
-        ).set_properties(subset=['Site Alias'], **{'font-weight': 'bold'}, subset=['Motion Count', 'Vibration Count'])
+        ).set_properties(subset=['Site Alias', 'Motion Count', 'Vibration Count'], **{'font-weight': 'bold'})
         
         st.table(styled_table)
 
