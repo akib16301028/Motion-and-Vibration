@@ -3,6 +3,9 @@ import streamlit as st
 from datetime import datetime, time
 import requests
 
+# Load username data from repository
+username_df = pd.read_excel("USER NAME.xlsx")
+
 # Function to preprocess current alarm files to match expected column names
 def preprocess_current_alarm(df, alarm_type):
     df = df.rename(columns={"Alarm Time": "Start Time"})
@@ -39,25 +42,21 @@ def count_entries_by_zone(merged_df, start_time_filter=None):
     
     return final_df
 
-# Function to display detailed entries for a specific site alias
-def display_detailed_entries(merged_df, site_alias):
-    filtered = merged_df[merged_df['Site Alias'] == site_alias][['Site Alias', 'Start Time', 'End Time', 'Type']]
-    if not filtered.empty:
-        st.sidebar.write(f"Detailed entries for Site Alias: {site_alias}")
-        st.sidebar.table(filtered)
-    else:
-        st.sidebar.write("No data for this site.")
-
-# Function to send Telegram notification
+# Function to send Telegram notification with username mention
 def send_telegram_notification(zone, zone_df, total_motion, total_vibration):
     chat_id = "-4537588687"
     bot_token = "7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME"
+    
+    # Fetch the username for the given zone
+    username = username_df.loc[username_df['Zone'] == zone, 'Name'].values
+    username_mention = f"@{username[0]}" if username.size > 0 else ""
     
     # Construct message
     message = f"**Zone: {zone}**\n\n"
     message += f"Total Motion Alarm count: {total_motion}\nTotal Vibration Alarm count: {total_vibration}\n\n"
     for _, row in zone_df.iterrows():
         message += f"**{row['Site Alias']}** : Motion Count: {row['Motion Count']}, Vibration Count: {row['Vibration Count']}\n"
+    message += f"\n{username_mention} please take care."
     
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     data = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
