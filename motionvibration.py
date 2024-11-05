@@ -98,9 +98,13 @@ if report_motion_file and current_motion_file and report_vibration_file and curr
 
     # Sidebar options for download, zone filter, and notifications
     with st.sidebar:
-        # Download report button
-        csv_data = merged_df.to_csv(index=False).encode('utf-8')
-        st.download_button(label="Download Report as CSV", data=csv_data, file_name="alarm_summary.csv", mime="text/csv")
+        # Send notification button at the top
+        if st.button("Send Telegram Notification", help="Send alarm summaries to Telegram"):
+            if 'messages' in st.session_state and st.session_state.messages:
+                # Send generated messages to Telegram
+                send_telegram_notification(st.session_state.messages)
+            else:
+                st.error("No messages to send. Please generate the messages first.")
 
         # Date and time filter
         selected_date = st.date_input("Select Start Date", value=datetime.now().date())
@@ -110,42 +114,32 @@ if report_motion_file and current_motion_file and report_vibration_file and curr
         # Zone filter option
         zone_filter = st.selectbox("Select Zone to Filter", options=["All"] + list(zone_priority))
 
-    # Send notification button at the top
-    if st.button("Send Telegram Notification", help="Send alarm summaries to Telegram"):
-        # Check if there are generated messages
-        if 'messages' in locals() and messages:
-            # Filter messages to only those in the defined priority zones
-            filtered_messages = {zone: msg for zone, msg in messages.items() if zone in zone_priority}
-            if filtered_messages:
-                send_telegram_notification(filtered_messages)
-            else:
-                st.error("No messages to send for prioritized zones.")
-        else:
-            st.error("No messages to send. Please generate the messages first.")
+        # Generate message button
+        if st.button("Generate Message", help="Generate alarm summaries for each zone"):
+            summary_df = count_entries_by_zone(merged_df, start_time_filter)
+            if zone_filter != "All":
+                summary_df = summary_df[summary_df['Zone'] == zone_filter]
 
-    # Generate message button
-    if st.button("Generate Message", help="Generate alarm summaries for each zone"):
-        summary_df = count_entries_by_zone(merged_df, start_time_filter)
-        zones = sorted(summary_df['Zone'].unique(), key=lambda z: (zone_priority.index(z) if z in zone_priority else float('inf')))
-        
-        messages = {}
-        for zone in zones:
-            zone_df = summary_df[summary_df['Zone'] == zone]
-            total_motion = zone_df['Motion Count'].sum()
-            total_vibration = zone_df['Vibration Count'].sum()
-
-            # Get all usernames for the zone
-            usernames = username_df[username_df['Zone'] == zone]['Name'].dropna().unique()
+            zones = sorted(summary_df['Zone'].unique(), key=lambda z: (zone_priority.index(z) if z in zone_priority else float('inf')))
             
-            # Generate the message for this zone
-            messages[zone] = generate_telegram_message(zone, zone_df, total_motion, total_vibration, usernames)
+            st.session_state.messages = {}  # Clear previous messages
+            for zone in zones:
+                zone_df = summary_df[summary_df['Zone'] == zone]
+                total_motion = zone_df['Motion Count'].sum()
+                total_vibration = zone_df['Vibration Count'].sum()
 
-        # Display generated messages
-        st.subheader("Generated Messages")
-        for zone, message in messages.items():
-            st.text(f"Message for {zone}:")
-            st.text(message)
-            st.text("---")
+                # Get all usernames for the zone
+                usernames = username_df[username_df['Zone'] == zone]['Name'].dropna().unique()
+                
+                # Generate the message for this zone
+                st.session_state.messages[zone] = generate_telegram_message(zone, zone_df, total_motion, total_vibration, usernames)
+
+            # Display generated messages
+            st.subheader("Generated Messages")
+            for zone, message in st.session_state.messages.items():
+                st.text(f"Message for {zone}:")
+                st.text(message)
+                st.text("---")
 
     # Filtered summary based on selected zone
     summary_df = count_entries_by_zone(merged_df, start_time_filter)
