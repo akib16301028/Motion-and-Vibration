@@ -54,7 +54,7 @@ def send_telegram_notification(zone, zone_df, total_motion, total_vibration, use
     username_mentions = " ".join([f"@{name}" for name in usernames])
     
     # Message structure
-    message = f"**Zone: {zone}**\n\n"
+    message = f"**{zone}**\n\n"
     message += f"Total Motion Alarm count: {total_motion}\nTotal Vibration Alarm count: {total_vibration}\n\n"
     for _, row in zone_df.iterrows():
         message += f"**{row['Site Alias']}** : Motion Count: {row['Motion Count']}, Vibration Count: {row['Vibration Count']}\n"
@@ -65,7 +65,7 @@ def send_telegram_notification(zone, zone_df, total_motion, total_vibration, use
     
     response = requests.post(url, data=data)
     if response.status_code == 200:
-        st.success(f"Notification sent for Zone: {zone}")
+        st.success(f"Notification sent for {zone}")
     else:
         st.error("Failed to send notification.")
 
@@ -116,7 +116,7 @@ if report_motion_file and current_motion_file and report_vibration_file and curr
 
     zones = summary_df['Zone'].unique()
     for zone in zones:
-        st.write(f"### Zone: {zone}")
+        st.write(f"### {zone}")
         zone_df = summary_df[summary_df['Zone'] == zone]
 
         # Calculate total counts for the zone
