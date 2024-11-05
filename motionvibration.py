@@ -6,7 +6,7 @@ import requests
 # Load username data from repository
 username_df = pd.read_excel("USER NAME.xlsx")
 
-# Define zone priority order for Telegram notifications, adding "Mymensingh"
+# Define zone priority order for Telegram notifications
 zone_priority = ["Sylhet", "Gazipur", "Shariatpur", "Narayanganj", "Faridpur", "Mymensingh"]
 
 # Function to preprocess current alarm files to match expected column names
@@ -56,13 +56,19 @@ def send_telegram_notification(zone, zone_df, total_motion, total_vibration, use
     # Construct message with multiple contacts if needed
     username_mentions = " ".join([f"@{name}" for name in usernames])
     
-    # Message structure
+    # Modify the message structure
     message = f"**{zone}**\n\n"
     message += f"Total Motion Alarm count: {total_motion}\nTotal Vibration Alarm count: {total_vibration}\n\n"
-    for _, row in zone_df.iterrows():
-        message += f"**{row['Site Alias']}** : Motion Count: {row['Motion Count']}, Vibration Count: {row['Vibration Count']}\n"
-    message += f"\n{username_mentions} please take care."
 
+    # Loop through each site alias and its corresponding counts
+    for _, row in zone_df.iterrows():
+        message += f"{row['Site Alias']} : \n"
+        message += f"Motion Count: {row['Motion Count']}\n"
+        message += f"Vibration Count: {row['Vibration Count']}\n\n"
+
+    message += f"{username_mentions} please take care."
+    
+    # Sending the message via Telegram API
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     data = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
     
@@ -70,7 +76,7 @@ def send_telegram_notification(zone, zone_df, total_motion, total_vibration, use
     if response.status_code == 200:
         st.success(f"Notification sent for {zone}")
     else:
-        st.error(f"Failed to send notification for {zone}. Error: {response.status_code} - {response.text}")
+        st.error("Failed to send notification.")
 
 # Streamlit app
 st.title('Odin-s-Eye - Motion & Vibration Alarm Monitoring')
@@ -101,7 +107,7 @@ if report_motion_file and current_motion_file and report_vibration_file and curr
         start_time_filter = datetime.combine(selected_date, selected_time)
 
         # Zone filter option
-        zone_filter = st.selectbox("Select Zone to Filter", options=["All"] + zone_priority)
+        zone_filter = st.selectbox("Select Zone to Filter", options=["All"] + list(zone_priority))
         
         # Telegram notification button
         if st.button("Telegram Notification", help="Send alarm summary to Telegram"):
