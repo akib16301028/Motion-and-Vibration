@@ -6,7 +6,7 @@ import requests
 # Load username data from repository
 username_df = pd.read_excel("USER NAME.xlsx")
 
-# Define zone priority order for Telegram notifications, adding "Mymensingh"
+# Define zone priority order for Telegram notifications
 zone_priority = ["Sylhet", "Gazipur", "Shariatpur", "Narayanganj", "Faridpur", "Mymensingh"]
 
 # Function to preprocess current alarm files to match expected column names
@@ -56,15 +56,17 @@ def send_telegram_notification(zone, zone_df, total_motion, total_vibration, use
     # Construct message with multiple contacts if needed
     username_mentions = " ".join([f"@{name}" for name in usernames])
     
-    # Message structure
-    message = f"**{zone}**\n\n"
+    # Escaping special characters in site aliases and usernames
+    zone = zone.replace("_", "\\_")
+    message = f"*{zone}*\n\n"
     message += f"Total Motion Alarm count: {total_motion}\nTotal Vibration Alarm count: {total_vibration}\n\n"
     for _, row in zone_df.iterrows():
-        message += f"**{row['Site Alias']}** : Motion Count: {row['Motion Count']}, Vibration Count: {row['Vibration Count']}\n"
+        site_alias = row['Site Alias'].replace("_", "\\_").replace("*", "\\*")
+        message += f"*{site_alias}* : Motion Count: {row['Motion Count']}, Vibration Count: {row['Vibration Count']}\n"
     message += f"\n{username_mentions} please take care."
 
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    data = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
+    data = {"chat_id": chat_id, "text": message, "parse_mode": "MarkdownV2"}
     
     response = requests.post(url, data=data)
     if response.status_code == 200:
