@@ -2,20 +2,12 @@ import pandas as pd
 import streamlit as st
 from datetime import datetime, time
 import requests
-import re
 
 # Load username data from repository
 username_df = pd.read_excel("USER NAME.xlsx")
 
 # Define zone priority order
 zone_priority = ["Sylhet", "Gazipur", "Shariatpur", "Narayanganj", "Faridpur", "Mymensingh"]
-
-# Function to escape MarkdownV2 characters for Telegram messages
-def escape_markdown_v2(text):
-    # List of characters that need to be escaped for MarkdownV2
-    markdown_v2_chars = r'_*[]()~`>#+-=|{}.!'
-    # Escape each special character with a preceding backslash
-    return re.sub(f'([{re.escape(markdown_v2_chars)}])', r'\\\1', text)
 
 # Function to preprocess current alarm files to match expected column names
 def preprocess_current_alarm(df, alarm_type):
@@ -53,40 +45,35 @@ def count_entries_by_zone(merged_df, start_time_filter=None):
     
     return final_df
 
-# Function to send Telegram notification with prioritized zone order and special character escaping
-def send_telegram_notification(zone, zone_df, total_motion, total_vibration, usernames):
-    if zone not in zone_priority:
-        return  # Only send notification for prioritized zones
+# Escaping MarkdownV2 characters for Telegram messages
+def escape_markdown_v2(text):
+    special_chars = r'_*\[\]()~`>#+-=|{}.!'
+    return ''.join(f'\\{char}' if char in special_chars else char for char in text)
 
+# Function to send Telegram notification with prioritized zone order
+def send_telegram_notification(zone, zone_df, total_motion, total_vibration, usernames):
     chat_id = "-4537588687"
     bot_token = "7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME"
     
-    # Construct message with multiple contacts if needed
-    username_mentions = " ".join([f"@{escape_markdown_v2(name)}" for name in usernames])
-    
-    # Escape all special characters in the zone name, site aliases, and other fields
-    zone_escaped = escape_markdown_v2(zone)
-    message = f"*{zone_escaped}*\n\n"
+    # Construct message with escaped characters
+    message = f"**{escape_markdown_v2(zone)}**\n\n"
     message += f"Total Motion Alarm count: {total_motion}\nTotal Vibration Alarm count: {total_vibration}\n\n"
-    
     for _, row in zone_df.iterrows():
-        site_alias_escaped = escape_markdown_v2(row['Site Alias'])
-        motion_count = row['Motion Count']
-        vibration_count = row['Vibration Count']
-        
-        message += f"*{site_alias_escaped}* : Motion Count: {motion_count}, Vibration Count: {vibration_count}\n"
+        site_alias = escape_markdown_v2(row['Site Alias'])
+        message += f"**{site_alias}** : Motion Count: {row['Motion Count']}, Vibration Count: {row['Vibration Count']}\n"
     
+    # Add user mentions at the end of the message
+    username_mentions = " ".join([f"@{escape_markdown_v2(name)}" for name in usernames])
     message += f"\n{username_mentions} please take care."
 
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     data = {"chat_id": chat_id, "text": message, "parse_mode": "MarkdownV2"}
-
-    # Send the message and handle errors
+    
     response = requests.post(url, data=data)
     if response.status_code == 200:
         st.success(f"Notification sent for {zone}")
     else:
-        st.error(f"Failed to send notification for {zone}. Error: {response.status_code} - {response.text}")
+        st.error(f"Failed to send notification for {zone}. Error: {response.status_code} - {response.json()}")
 
 # Streamlit app
 st.title('Odin-s-Eye - Motion & Vibration Alarm Monitoring')
@@ -107,17 +94,12 @@ if report_motion_file and current_motion_file and report_vibration_file and curr
 
     # Sidebar options for download and notifications
     with st.sidebar:
-        # Download report button
         csv_data = merged_df.to_csv(index=False).encode('utf-8')
         st.download_button(label="Download Report as CSV", data=csv_data, file_name="alarm_summary.csv", mime="text/csv")
 
-        # Date and time filter
         selected_date = st.date_input("Select Start Date", value=datetime.now().date())
         selected_time = st.time_input("Select Start Time", value=time(0, 0))
         start_time_filter = datetime.combine(selected_date, selected_time)
-
-        # Zone filter selection
-        selected_zone = st.selectbox("Filter by Zone", ["All"] + zone_priority)
 
         # Telegram notification button
         if st.button("Telegram Notification", help="Send alarm summary to Telegram"):
@@ -125,14 +107,10 @@ if report_motion_file and current_motion_file and report_vibration_file and curr
             zones = sorted(summary_df['Zone'].unique(), key=lambda z: (zone_priority.index(z) if z in zone_priority else float('inf')))
             
             for zone in zones:
-                if selected_zone != "All" and zone != selected_zone:
-                    continue
-                
                 zone_df = summary_df[summary_df['Zone'] == zone]
                 total_motion = zone_df['Motion Count'].sum()
                 total_vibration = zone_df['Vibration Count'].sum()
 
-                # Get all usernames for the zone
                 usernames = username_df[username_df['Zone'] == zone]['Name'].dropna().unique()
                 
                 send_telegram_notification(zone, zone_df, total_motion, total_vibration, usernames)
@@ -144,18 +122,14 @@ if report_motion_file and current_motion_file and report_vibration_file and curr
         st.write(f"### {zone}")
         zone_df = summary_df[summary_df['Zone'] == zone]
 
-        # Calculate total counts for the zone
         total_motion = zone_df['Motion Count'].sum()
         total_vibration = zone_df['Vibration Count'].sum()
 
-        # Display total counts
         st.write(f"Total Motion Alarm count: {total_motion}")
         st.write(f"Total Vibration Alarm count: {total_vibration}")
 
-        # Display the detailed table, hiding the 'Zone' column
         st.table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count']])
 
-    # Site alias search option
     site_search = st.sidebar.text_input("Search for a specific site alias")
     if site_search:
         display_detailed_entries(merged_df, site_search)
