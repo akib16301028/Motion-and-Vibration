@@ -6,7 +6,7 @@ import requests
 # Load username data from repository
 username_df = pd.read_excel("USER NAME.xlsx")
 
-# Define zone priority order
+# Define zone priority order for Telegram notifications
 zone_priority = ["Sylhet", "Gazipur", "Shariatpur", "Narayanganj", "Faridpur"]
 
 # Function to preprocess current alarm files to match expected column names
@@ -45,8 +45,11 @@ def count_entries_by_zone(merged_df, start_time_filter=None):
     
     return final_df
 
-# Function to send Telegram notification with prioritized zone order
+# Function to send Telegram notification for specified zones only
 def send_telegram_notification(zone, zone_df, total_motion, total_vibration, usernames):
+    if zone not in zone_priority:
+        return  # Only send notification for prioritized zones
+    
     chat_id = "-4537588687"
     bot_token = "7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME"
     
@@ -86,7 +89,7 @@ if report_motion_file and current_motion_file and report_vibration_file and curr
 
     merged_df = merge_motion_vibration(report_motion_df, current_motion_df, report_vibration_df, current_vibration_df)
 
-    # Sidebar options for download and notifications
+    # Sidebar options for download, zone filter, and notifications
     with st.sidebar:
         # Download report button
         csv_data = merged_df.to_csv(index=False).encode('utf-8')
@@ -97,6 +100,9 @@ if report_motion_file and current_motion_file and report_vibration_file and curr
         selected_time = st.time_input("Select Start Time", value=time(0, 0))
         start_time_filter = datetime.combine(selected_date, selected_time)
 
+        # Zone filter option
+        zone_filter = st.selectbox("Select Zone to Filter", options=["All"] + list(zone_priority))
+        
         # Telegram notification button
         if st.button("Telegram Notification", help="Send alarm summary to Telegram"):
             summary_df = count_entries_by_zone(merged_df, start_time_filter)
@@ -112,7 +118,10 @@ if report_motion_file and current_motion_file and report_vibration_file and curr
                 
                 send_telegram_notification(zone, zone_df, total_motion, total_vibration, usernames)
 
+    # Filtered summary based on selected zone
     summary_df = count_entries_by_zone(merged_df, start_time_filter)
+    if zone_filter != "All":
+        summary_df = summary_df[summary_df['Zone'] == zone_filter]
 
     zones = summary_df['Zone'].unique()
     for zone in zones:
@@ -127,8 +136,8 @@ if report_motion_file and current_motion_file and report_vibration_file and curr
         st.write(f"Total Motion Alarm count: {total_motion}")
         st.write(f"Total Vibration Alarm count: {total_vibration}")
 
-        # Display the detailed table
-        st.table(zone_df[['Zone', 'Site Alias', 'Motion Count', 'Vibration Count']])
+        # Display the detailed table without the Zone column
+        st.table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count']])
 
     site_search = st.sidebar.text_input("Search for a specific site alias")
     if site_search:
