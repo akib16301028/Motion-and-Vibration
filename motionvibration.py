@@ -49,17 +49,18 @@ def count_entries_by_zone(merged_df, start_time_filter=None):
 def generate_telegram_message(zone, zone_df, total_motion, total_vibration, usernames):
     username_mentions = " ".join([f"@{name}" for name in usernames])
     
-    message = f"**{zone}**\n\n"
-    message += f"Total Motion Alarm count: {total_motion}\nTotal Vibration Alarm count: {total_vibration}\n\n"
-
+    # Construct the message based on the specified template
+    message = f"{zone}\n\n"  # Zone name at the top
+    message += f"Total Motion Alarm count: {total_motion}\nTotal Vibration Alarm count: {total_vibration}\n\n"  # Total counts
+    
     for _, row in zone_df.iterrows():
-        message += f"{row['Site Alias']} : \n"
-        message += f"Motion Count: {row['Motion Count']}\n"
-        message += f"Vibration Count: {row['Vibration Count']}\n\n"
+        message += f"{row['Site Alias']} : \n"  # Site Alias
+        message += f"Motion Count: {row['Motion Count']}, Vibration Count: {row['Vibration Count']}\n\n"  # Counts for each site
 
     message += f"{username_mentions} please take care."
     
     return message
+
 
 # Function to send Telegram notification for specified zones only
 def send_telegram_notification(messages):
