@@ -61,22 +61,16 @@ def generate_telegram_message(zone, zone_df, total_motion, total_vibration, user
     
     return message
 
-
-# Function to send Telegram notification for specified zones only
-def send_telegram_notification(messages):
+# Function to send a single Telegram message
+def send_telegram_message(message):
     chat_id = "-4537588687"
     bot_token = "7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME"
     
-    for zone, message in messages.items():
-        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-        data = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
-        response = requests.post(url, data=data)
-        
-        if response.status_code != 200:
-            st.error(f"Failed to send notification for {zone}.")
-            return
-
-    st.success("Notifications sent successfully!")
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    data = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
+    response = requests.post(url, data=data)
+    
+    return response.status_code == 200  # Return True if successful
 
 # Streamlit app
 st.title('Odin-s-Eye - Motion & Vibration Alarm Monitoring')
@@ -95,15 +89,8 @@ if report_motion_file and current_motion_file and report_vibration_file and curr
 
     merged_df = merge_motion_vibration(report_motion_df, current_motion_df, report_vibration_df, current_vibration_df)
 
-    # Sidebar options for download, zone filter, and notifications
+    # Sidebar options for date filter and notifications
     with st.sidebar:
-        # Send notification button at the top
-        if st.button("Send Telegram Notification", help="Send alarm summaries to Telegram"):
-            if 'messages' in st.session_state and st.session_state.messages:
-                send_telegram_notification(st.session_state.messages)
-            else:
-                st.error("No messages to send. Please generate the messages first.")
-
         # Date and time filter
         selected_date = st.date_input("Select Start Date", value=datetime.now().date())
         selected_time = st.time_input("Select Start Time", value=time(0, 0))
@@ -136,13 +123,11 @@ if report_motion_file and current_motion_file and report_vibration_file and curr
                     messages[zone] = generate_telegram_message(zone, zone_df, total_motion, total_vibration, usernames)
 
             if messages:
-                st.session_state.messages = messages  # Store messages in session_state
-                st.success("Messages generated successfully!")
-                st.subheader("Generated Messages")
                 for zone, message in messages.items():
-                    st.text(f"Message for {zone}:")
-                    st.text(message)
-                    st.text("---")
+                    if send_telegram_message(message):
+                        st.success(f"Message sent successfully for {zone}!")
+                    else:
+                        st.error(f"Failed to send message for {zone}.")
             else:
                 st.error("No alarms found for the selected zone.")
 
