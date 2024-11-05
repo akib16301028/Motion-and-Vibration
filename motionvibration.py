@@ -121,8 +121,7 @@ if report_motion_file and current_motion_file and report_vibration_file and curr
             summary_df = count_entries_by_zone(merged_df, start_time_filter)
             summary_df = summary_df[summary_df['Zone'].isin(selected_zones)]  # Filter for selected zones
             
-            # Clear previous messages
-            st.session_state.messages = {}
+            messages = {}  # Dictionary to hold messages
             for zone in selected_zones:
                 if zone in summary_df['Zone'].values:
                     zone_df = summary_df[summary_df['Zone'] == zone]
@@ -133,12 +132,13 @@ if report_motion_file and current_motion_file and report_vibration_file and curr
                     usernames = username_df[username_df['Zone'] == zone]['Name'].dropna().unique()
                     
                     # Generate the message for this zone
-                    st.session_state.messages[zone] = generate_telegram_message(zone, zone_df, total_motion, total_vibration, usernames)
+                    messages[zone] = generate_telegram_message(zone, zone_df, total_motion, total_vibration, usernames)
 
-            if st.session_state.messages:
+            if messages:
+                st.session_state.messages = messages  # Store messages in session_state
                 st.success("Messages generated successfully!")
                 st.subheader("Generated Messages")
-                for zone, message in st.session_state.messages.items():
+                for zone, message in messages.items():
                     st.text(f"Message for {zone}:")
                     st.text(message)
                     st.text("---")
