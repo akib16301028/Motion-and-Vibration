@@ -101,19 +101,35 @@ if report_motion_file and current_motion_file and report_vibration_file and curr
         selected_time = st.time_input("Select Start Time", value=time(0, 0))
         start_time_filter = datetime.combine(selected_date, selected_time)
 
-        # Telegram notification button
-        if st.button("Telegram Notification", help="Send alarm summary to Telegram"):
-            summary_df = count_entries_by_zone(merged_df, start_time_filter)
-            zones = sorted(summary_df['Zone'].unique(), key=lambda z: (zone_priority.index(z) if z in zone_priority else float('inf')))
-            
-            for zone in zones:
-                zone_df = summary_df[summary_df['Zone'] == zone]
-                total_motion = zone_df['Motion Count'].sum()
-                total_vibration = zone_df['Vibration Count'].sum()
+       # Modify the send_telegram_notification function
+def send_telegram_notification(zone, zone_df, total_motion, total_vibration, usernames):
+    if zone not in zone_priority:
+        return  # Only send notification for prioritized zones
+    
+    chat_id = "-4537588687"
+    bot_token = "7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME"
+    
+    # Construct message with multiple contacts if needed
+    username_mentions = " ".join([f"@{name}" for name in usernames])
+    
+    # Message structure, escaping dot characters
+    message = f"**{zone}**\n\n"
+    message += f"Total Motion Alarm count: {total_motion}\nTotal Vibration Alarm count: {total_vibration}\n\n"
+    for _, row in zone_df.iterrows():
+        # Escape dot characters by replacing '.' with '\.'
+        site_alias = row['Site Alias'].replace(".", "\.")
+        message += f"**{site_alias}** : Motion Count: {row['Motion Count']}, Vibration Count: {row['Vibration Count']}\n"
+    message += f"\n{username_mentions} please take care."
 
-                usernames = username_df[username_df['Zone'] == zone]['Name'].dropna().unique()
-                
-                send_telegram_notification(zone, zone_df, total_motion, total_vibration, usernames)
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    data = {"chat_id": chat_id, "text": message, "parse_mode": "MarkdownV2"}  # Use MarkdownV2 for proper escaping
+    
+    response = requests.post(url, data=data)
+    if response.status_code == 200:
+        st.success(f"Notification sent for {zone}")
+    else:
+        st.error(f"Failed to send notification for {zone}. Error: {response.status_code} - {response.json()}")
+
 
     summary_df = count_entries_by_zone(merged_df, start_time_filter)
 
