@@ -6,7 +6,7 @@ import requests
 # Load username data from repository
 username_df = pd.read_excel("USER NAME.xlsx")
 
-# Define zone priority order
+# Define zone priority order for Telegram notifications, adding "Mymensingh"
 zone_priority = ["Sylhet", "Gazipur", "Shariatpur", "Narayanganj", "Faridpur", "Mymensingh"]
 
 # Function to preprocess current alarm files to match expected column names
@@ -45,35 +45,32 @@ def count_entries_by_zone(merged_df, start_time_filter=None):
     
     return final_df
 
-# Escaping MarkdownV2 characters for Telegram messages
-def escape_markdown_v2(text):
-    special_chars = r'_*\[\]()~`>#+-=|{}.!'
-    return ''.join(f'\\{char}' if char in special_chars else char for char in text)
-
-# Function to send Telegram notification with prioritized zone order
+# Function to send Telegram notification for specified zones only
 def send_telegram_notification(zone, zone_df, total_motion, total_vibration, usernames):
+    if zone not in zone_priority:
+        return  # Only send notification for prioritized zones
+    
     chat_id = "-4537588687"
     bot_token = "7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME"
     
-    # Construct message with escaped characters
-    message = f"**{escape_markdown_v2(zone)}**\n\n"
+    # Construct message with multiple contacts if needed
+    username_mentions = " ".join([f"@{name}" for name in usernames])
+    
+    # Message structure
+    message = f"**{zone}**\n\n"
     message += f"Total Motion Alarm count: {total_motion}\nTotal Vibration Alarm count: {total_vibration}\n\n"
     for _, row in zone_df.iterrows():
-        site_alias = escape_markdown_v2(row['Site Alias'])
-        message += f"**{site_alias}** : Motion Count: {row['Motion Count']}, Vibration Count: {row['Vibration Count']}\n"
-    
-    # Add user mentions at the end of the message
-    username_mentions = " ".join([f"@{escape_markdown_v2(name)}" for name in usernames])
+        message += f"**{row['Site Alias']}** : Motion Count: {row['Motion Count']}, Vibration Count: {row['Vibration Count']}\n"
     message += f"\n{username_mentions} please take care."
 
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    data = {"chat_id": chat_id, "text": message, "parse_mode": "MarkdownV2"}
+    data = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
     
     response = requests.post(url, data=data)
     if response.status_code == 200:
         st.success(f"Notification sent for {zone}")
     else:
-        st.error(f"Failed to send notification for {zone}. Error: {response.status_code} - {response.json()}")
+        st.error(f"Failed to send notification for {zone}. Error: {response.status_code} - {response.text}")
 
 # Streamlit app
 st.title('Odin-s-Eye - Motion & Vibration Alarm Monitoring')
@@ -92,58 +89,54 @@ if report_motion_file and current_motion_file and report_vibration_file and curr
 
     merged_df = merge_motion_vibration(report_motion_df, current_motion_df, report_vibration_df, current_vibration_df)
 
-    # Sidebar options for download and notifications
+    # Sidebar options for download, zone filter, and notifications
     with st.sidebar:
+        # Download report button
         csv_data = merged_df.to_csv(index=False).encode('utf-8')
         st.download_button(label="Download Report as CSV", data=csv_data, file_name="alarm_summary.csv", mime="text/csv")
 
+        # Date and time filter
         selected_date = st.date_input("Select Start Date", value=datetime.now().date())
         selected_time = st.time_input("Select Start Time", value=time(0, 0))
         start_time_filter = datetime.combine(selected_date, selected_time)
 
-       # Modify the send_telegram_notification function
-def send_telegram_notification(zone, zone_df, total_motion, total_vibration, usernames):
-    if zone not in zone_priority:
-        return  # Only send notification for prioritized zones
-    
-    chat_id = "-4537588687"
-    bot_token = "7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME"
-    
-    # Construct message with multiple contacts if needed
-    username_mentions = " ".join([f"@{name}" for name in usernames])
-    
-    # Message structure, escaping dot characters
-    message = f"**{zone}**\n\n"
-    message += f"Total Motion Alarm count: {total_motion}\nTotal Vibration Alarm count: {total_vibration}\n\n"
-    for _, row in zone_df.iterrows():
-        # Escape dot characters by replacing '.' with '\.'
-        site_alias = row['Site Alias'].replace(".", "\.")
-        message += f"**{site_alias}** : Motion Count: {row['Motion Count']}, Vibration Count: {row['Vibration Count']}\n"
-    message += f"\n{username_mentions} please take care."
+        # Zone filter option
+        zone_filter = st.selectbox("Select Zone to Filter", options=["All"] + zone_priority)
+        
+        # Telegram notification button
+        if st.button("Telegram Notification", help="Send alarm summary to Telegram"):
+            summary_df = count_entries_by_zone(merged_df, start_time_filter)
+            zones = sorted(summary_df['Zone'].unique(), key=lambda z: (zone_priority.index(z) if z in zone_priority else float('inf')))
+            
+            for zone in zones:
+                zone_df = summary_df[summary_df['Zone'] == zone]
+                total_motion = zone_df['Motion Count'].sum()
+                total_vibration = zone_df['Vibration Count'].sum()
 
-    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    data = {"chat_id": chat_id, "text": message, "parse_mode": "MarkdownV2"}  # Use MarkdownV2 for proper escaping
-    
-    response = requests.post(url, data=data)
-    if response.status_code == 200:
-        st.success(f"Notification sent for {zone}")
-    else:
-        st.error(f"Failed to send notification for {zone}. Error: {response.status_code} - {response.json()}")
+                # Get all usernames for the zone
+                usernames = username_df[username_df['Zone'] == zone]['Name'].dropna().unique()
+                
+                send_telegram_notification(zone, zone_df, total_motion, total_vibration, usernames)
 
-
+    # Filtered summary based on selected zone
     summary_df = count_entries_by_zone(merged_df, start_time_filter)
+    if zone_filter != "All":
+        summary_df = summary_df[summary_df['Zone'] == zone_filter]
 
     zones = summary_df['Zone'].unique()
     for zone in zones:
         st.write(f"### {zone}")
         zone_df = summary_df[summary_df['Zone'] == zone]
 
+        # Calculate total counts for the zone
         total_motion = zone_df['Motion Count'].sum()
         total_vibration = zone_df['Vibration Count'].sum()
 
+        # Display total counts
         st.write(f"Total Motion Alarm count: {total_motion}")
         st.write(f"Total Vibration Alarm count: {total_vibration}")
 
+        # Display the detailed table without the Zone column
         st.table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count']])
 
     site_search = st.sidebar.text_input("Search for a specific site alias")
