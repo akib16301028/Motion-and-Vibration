@@ -6,8 +6,8 @@ import requests
 # Load username data from repository
 username_df = pd.read_excel("USER NAME.xlsx")
 
-# Define zone priority order for Telegram notifications
-zone_priority = ["Sylhet", "Gazipur", "Shariatpur", "Narayanganj", "Faridpur"]
+# Define zone priority order for Telegram notifications, adding "Mymensingh"
+zone_priority = ["Sylhet", "Gazipur", "Shariatpur", "Narayanganj", "Faridpur", "Mymensingh"]
 
 # Function to preprocess current alarm files to match expected column names
 def preprocess_current_alarm(df, alarm_type):
@@ -70,7 +70,7 @@ def send_telegram_notification(zone, zone_df, total_motion, total_vibration, use
     if response.status_code == 200:
         st.success(f"Notification sent for {zone}")
     else:
-        st.error("Failed to send notification.")
+        st.error(f"Failed to send notification for {zone}. Error: {response.status_code} - {response.text}")
 
 # Streamlit app
 st.title('Odin-s-Eye - Motion & Vibration Alarm Monitoring')
@@ -101,7 +101,7 @@ if report_motion_file and current_motion_file and report_vibration_file and curr
         start_time_filter = datetime.combine(selected_date, selected_time)
 
         # Zone filter option
-        zone_filter = st.selectbox("Select Zone to Filter", options=["All"] + list(zone_priority))
+        zone_filter = st.selectbox("Select Zone to Filter", options=["All"] + zone_priority)
         
         # Telegram notification button
         if st.button("Telegram Notification", help="Send alarm summary to Telegram"):
