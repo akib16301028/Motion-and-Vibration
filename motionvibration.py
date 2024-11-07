@@ -99,7 +99,7 @@ if report_motion_file and report_vibration_file:
 
                     for _, row in site_summary.iterrows():
                         message += f"{row['Site Alias']}\n"
-                        message += f"Vibration Alarms: {row['Vibration Count']}\n"
+                        message += f"Vibration Alarms: {row['Vibration Count']}, Motion Alarms: {row['Motion Count']}\n\n"
                         message += f"Motion Alarms: {row['Motion Count']}\n\n"
                         
 
