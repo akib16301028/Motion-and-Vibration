@@ -98,7 +98,7 @@ if report_motion_file and report_vibration_file:
                     site_summary = count_entries_by_zone(zone_df, start_time_filter)
 
                     for _, row in site_summary.iterrows():
-                        message += f"{row['Site Alias']}\n"
+                        message += f"{row['Site Alias']}: Vibration: {row['Vibration Count']}, Motion: {row['Motion Count']} \n\n"
                         message += f"Vibration: {row['Vibration Count']}, Motion: {row['Motion Count']}\n\n"
                         
 
