@@ -5,7 +5,7 @@ from datetime import datetime, time
 # Load username data from repository
 username_df = pd.read_excel("USER NAME.xlsx")
 
-# Define zone priority order for display and Telegram notifications
+# Define zone priority order for display
 zone_priority = ["Sylhet", "Gazipur", "Shariatpur", "Narayanganj", "Faridpur", "Mymensingh"]
 
 # Function to preprocess report files
@@ -34,28 +34,27 @@ def count_entries_by_zone(merged_df, start_time_filter=None):
     final_df = pd.merge(motion_count, vibration_count, on=['Zone', 'Site Alias'], how='outer').fillna(0)
     final_df['Motion Count'] = final_df['Motion Count'].astype(int)
     final_df['Vibration Count'] = final_df['Vibration Count'].astype(int)
-    
-    # Add Total Count column for sorting
     final_df['Total Count'] = final_df['Motion Count'] + final_df['Vibration Count']
     
     return final_df
 
-# Styling function to color cells based on conditions
+# Styling function to color cells based on counts and theme
 def highlight_counts(row):
+    theme = "dark" if st.get_option("theme.base") == "dark" else "light"
     styles = []
-    for val in [row['Motion Count'], row['Vibration Count']]:
+    for val in [row['Motion Count'], row['Vibration Count'], row['Total Count']]:
         if val >= 10:
-            styles.append('background-color: lightcoral; color: white;')  # light red for 10+
+            styles.append(f'background-color: {"#8B0000" if theme == "dark" else "lightcoral"}; color: white;')  # Dark red/light red for 10+
         elif val > 0:
-            styles.append('background-color: lightgray;')
+            styles.append(f'background-color: {"#505050" if theme == "dark" else "lightgray"};')  # Dark gray/light gray for counts > 0
         else:
             styles.append('')
     return styles
 
 # Function to render DataFrame as an HTML table with color formatting
 def render_styled_table(df):
-    styled_df = df.style.apply(lambda row: highlight_counts(row), axis=1, subset=['Motion Count', 'Vibration Count'])
-    styled_df = styled_df.hide(axis='index')  # Hide the index for cleaner look
+    styled_df = df.style.apply(lambda row: highlight_counts(row), axis=1, subset=['Motion Count', 'Vibration Count', 'Total Count'])
+    styled_df = styled_df.set_properties(**{'font-size': '12px', 'padding': '4px'}).hide(axis='index')  # Smaller font and compact cells
     return styled_df.to_html()
 
 # Streamlit app
