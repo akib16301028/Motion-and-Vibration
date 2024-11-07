@@ -16,7 +16,7 @@ def preprocess_report(df, alarm_type):
     df['End Time'] = pd.to_datetime(df['End Time'], errors='coerce')
     return df
 
-# Function to merge motion and vibration data from report files
+# Function to merge motion and vibration report files
 def merge_report_files(report_motion_df, report_vibration_df):
     report_motion_df = preprocess_report(report_motion_df, 'Motion')
     report_vibration_df = preprocess_report(report_vibration_df, 'Vibration')
@@ -37,25 +37,6 @@ def count_entries_by_zone(merged_df, start_time_filter=None):
     final_df['Vibration Count'] = final_df['Vibration Count'].astype(int)
     
     return final_df
-
-# Styling function to color cells based on counts and theme
-def highlight_counts(row):
-    theme = "dark" if st.get_option("theme.base") == "dark" else "light"
-    styles = []
-    for val in [row['Motion Count'], row['Vibration Count']]:
-        if val >= 10:
-            styles.append(f'background-color: {"#8B0000" if theme == "dark" else "lightcoral"}; color: white;')  # Dark red/light red for 10+
-        elif val > 0:
-            styles.append(f'background-color: {"#505050" if theme == "dark" else "lightgray"};')  # Dark gray/light gray for counts > 0
-        else:
-            styles.append('')
-    return styles
-
-# Function to render DataFrame as an HTML table with color formatting
-def render_styled_table(df):
-    styled_df = df.style.apply(lambda row: highlight_counts(row), axis=1, subset=['Motion Count', 'Vibration Count'])
-    styled_df = styled_df.set_properties(**{'font-size': '12px', 'padding': '4px'}).hide(axis='index')  # Smaller font and compact cells
-    return styled_df.to_html()
 
 # Function to generate the Telegram message for each zone
 def generate_telegram_message(zone, zone_df, total_motion, total_vibration, usernames):
@@ -105,7 +86,7 @@ if report_motion_file and report_vibration_file:
         start_time_filter = datetime.combine(selected_date, selected_time)
 
         # Send notification button
-        if st.button("Send Telegram Notification", help="Send alarm summaries to Telegram for all zones"):
+        if st.button("Send Telegram Notification", help="Send alarm summaries to Telegram for priority zones"):
             for zone in zone_priority:
                 zone_df = merged_df[merged_df['Zone'] == zone]
 
@@ -126,18 +107,14 @@ if report_motion_file and report_vibration_file:
     # Filtered summary based on selected time filter
     summary_df = count_entries_by_zone(merged_df, start_time_filter)
 
-    # Separate prioritized and non-prioritized zones
-    prioritized_df = summary_df[summary_df['Zone'].isin(zone_priority)]
-    non_prioritized_df = summary_df[~summary_df['Zone'].isin(zone_priority)]
-
-    # Sort prioritized zones according to the order in zone_priority
-    prioritized_df['Zone'] = pd.Categorical(prioritized_df['Zone'], categories=zone_priority, ordered=True)
-    prioritized_df = prioritized_df.sort_values('Zone')
+    # Sort by the priority zone order
+    summary_df['Zone'] = pd.Categorical(summary_df['Zone'], categories=zone_priority, ordered=True)
+    summary_df = summary_df.sort_values('Zone')
 
     # Display prioritized zones first, sorted by total motion and vibration counts in descending order
-    for zone in prioritized_df['Zone'].unique():
+    for zone in summary_df['Zone'].unique():
         st.write(f"### {zone}")
-        zone_df = prioritized_df[prioritized_df['Zone'] == zone]
+        zone_df = summary_df[summary_df['Zone'] == zone]
 
         # Sort by total motion and vibration counts (sum of both)
         zone_df['Total Alarm Count'] = zone_df['Motion Count'] + zone_df['Vibration Count']
@@ -149,27 +126,8 @@ if report_motion_file and report_vibration_file:
         st.write(f"Total Motion Alarm count: {total_motion}")
         st.write(f"Total Vibration Alarm count: {total_vibration}")
 
-        # Render and display the HTML table with color formatting
-        styled_table_html = render_styled_table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count']])
-        st.markdown(styled_table_html, unsafe_allow_html=True)
+        # Display the table without 'Total Alarm Count' column, and show the 'Site Alias' with motion/vibration counts
+        st.table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count']])
 
-    # Display non-prioritized zones in alphabetical order, sorted by total motion and vibration counts
-    for zone in sorted(non_prioritized_df['Zone'].unique()):
-        st.write(f"### {zone}")
-        zone_df = non_prioritized_df[non_prioritized_df['Zone'] == zone]
-
-        # Sort by total motion and vibration counts (sum of both)
-        zone_df['Total Alarm Count'] = zone_df['Motion Count'] + zone_df['Vibration Count']
-        zone_df = zone_df.sort_values('Total Alarm Count', ascending=False)
-
-        # Display the total alarm count as in the original format
-        total_motion = zone_df['Motion Count'].sum()
-        total_vibration = zone_df['Vibration Count'].sum()
-        st.write(f"Total Motion Alarm count: {total_motion}")
-        st.write(f"Total Vibration Alarm count: {total_vibration}")
-
-        # Render and display the HTML table with color formatting
-        styled_table_html = render_styled_table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count']])
-        st.markdown(styled_table_html, unsafe_allow_html=True)
 else:
     st.write("Please upload both Motion and Vibration Report Data files.")
