@@ -38,25 +38,6 @@ def count_entries_by_zone(merged_df, start_time_filter=None):
     
     return final_df
 
-# Styling function to color cells based on counts and theme
-def highlight_counts(row):
-    theme = "dark" if st.get_option("theme.base") == "dark" else "light"
-    styles = []
-    for val in [row['Motion Count'], row['Vibration Count']]:
-        if val >= 10:
-            styles.append(f'background-color: {"#8B0000" if theme == "dark" else "lightcoral"}; color: white;')  # Dark red/light red for 10+
-        elif val > 0:
-            styles.append(f'background-color: {"#505050" if theme == "dark" else "lightgray"};')  # Dark gray/light gray for counts > 0
-        else:
-            styles.append('')
-    return styles
-
-# Function to render DataFrame as an HTML table with color formatting
-def render_styled_table(df):
-    styled_df = df.style.apply(lambda row: highlight_counts(row), axis=1, subset=['Motion Count', 'Vibration Count'])
-    styled_df = styled_df.set_properties(**{'font-size': '12px', 'padding': '4px'}).hide(axis='index')  # Smaller font and compact cells
-    return styled_df.to_html()
-
 # Function to send data to Telegram
 def send_to_telegram(message, chat_id, bot_token):
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
@@ -90,17 +71,36 @@ if report_motion_file and report_vibration_file:
         
         # Button to send data to Telegram
         if st.button("Send Data to Telegram"):
+            summary_df = count_entries_by_zone(merged_df, start_time_filter)
+
+            # Filter and prioritize zones
+            prioritized_df = summary_df[summary_df['Zone'].isin(zone_priority)]
+            prioritized_df['Zone'] = pd.Categorical(prioritized_df['Zone'], categories=zone_priority, ordered=True)
+            prioritized_df = prioritized_df.sort_values('Zone')
+
             message = f"<b>Alarm Summary Report:</b>\n\nStart Date: {selected_date}\nStart Time: {selected_time}\n\n"
+            
+            # Generate message for each prioritized zone
             for zone in zone_priority:
-                zone_df = merged_df[(merged_df['Zone'] == zone) & (merged_df['Start Time'] >= start_time_filter)]
+                zone_df = prioritized_df[prioritized_df['Zone'] == zone]
                 if not zone_df.empty:
+                    # Calculate total motion and vibration counts
+                    total_motion = zone_df['Motion Count'].sum()
+                    total_vibration = zone_df['Vibration Count'].sum()
+
+                    # Zone section header
                     message += f"<b>{zone} Zone:</b>\n"
+                    message += f"Total Motion Alarm count: {total_motion}\n"
+                    message += f"Total Vibration Alarm count: {total_vibration}\n\n"
+
+                    # Add details for each site alias in the zone
                     for _, row in zone_df.iterrows():
                         site_alias = row['Site Alias']
-                        motion_count = int(zone_df[zone_df['Site Alias'] == site_alias]['Type'].eq('Motion').sum())
-                        vibration_count = int(zone_df[zone_df['Site Alias'] == site_alias]['Type'].eq('Vibration').sum())
-                        message += f"Site: {site_alias} | Motion Alarms: {motion_count} | Vibration Alarms: {vibration_count}\n"
-                    message += "\n"
+                        motion_count = row['Motion Count']
+                        vibration_count = row['Vibration Count']
+                        message += f"Site: {site_alias} | Motion: {motion_count} | Vibration: {vibration_count}\n"
+                    message += "\n"  # Separate zones with an extra newline
+
             # Send message
             success = send_to_telegram(message, chat_id="-4537588687", bot_token="7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME")
             if success:
