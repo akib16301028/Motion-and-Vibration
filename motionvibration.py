@@ -40,7 +40,7 @@ def count_entries_by_zone(merged_df, start_time_filter=None):
 
 # Function to generate the Telegram message for each zone
 def generate_telegram_message_for_zone(zone, zone_df):
-    # Check if the necessary columns exist
+    # Check if the necessary columns exist (Motion Count or Vibration Count)
     if 'Motion Count' not in zone_df.columns or 'Vibration Count' not in zone_df.columns:
         st.error(f"Error: Missing required columns (Motion Count or Vibration Count) in zone {zone}")
         return None
