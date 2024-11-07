@@ -20,6 +20,7 @@ def merge_report_files(report_motion_df, report_vibration_df):
     return pd.concat([report_motion_df, report_vibration_df], ignore_index=True)
 
 # Count occurrences of Motion and Vibration per Site Alias and Zone
+# Updated count_entries_by_zone function
 def count_entries_by_zone(merged_df, start_time_filter=None):
     if start_time_filter:
         merged_df = merged_df[merged_df['Start Time'] >= start_time_filter]
@@ -27,7 +28,15 @@ def count_entries_by_zone(merged_df, start_time_filter=None):
     motion_count = merged_df[merged_df['Type'] == 'Motion'].groupby(['Zone', 'Site Alias']).size().reset_index(name='Motion Count')
     vibration_count = merged_df[merged_df['Type'] == 'Vibration'].groupby(['Zone', 'Site Alias']).size().reset_index(name='Vibration Count')
     
-    return pd.merge(motion_count, vibration_count, on=['Zone', 'Site Alias'], how='outer').fillna(0).astype(int)
+    # Merge counts and fill NaNs with zero
+    final_df = pd.merge(motion_count, vibration_count, on=['Zone', 'Site Alias'], how='outer').fillna(0)
+    
+    # Convert Motion and Vibration Count columns to integers safely
+    final_df['Motion Count'] = final_df['Motion Count'].astype(int)
+    final_df['Vibration Count'] = final_df['Vibration Count'].astype(int)
+    
+    return final_df
+
 
 # Function to send data to Telegram
 def send_to_telegram(message, chat_id, bot_token):
