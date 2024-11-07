@@ -93,10 +93,14 @@ if report_motion_file and report_vibration_file:
             message = f"<b>Alarm Summary Report:</b>\n\nStart Date: {selected_date}\nStart Time: {selected_time}\n\n"
             for zone in zone_priority:
                 zone_df = merged_df[(merged_df['Zone'] == zone) & (merged_df['Start Time'] >= start_time_filter)]
-                total_motion = zone_df[zone_df['Type'] == 'Motion'].shape[0]
-                total_vibration = zone_df[zone_df['Type'] == 'Vibration'].shape[0]
-                if total_motion or total_vibration:
-                    message += f"<b>{zone} Zone:</b>\nMotion Alarms: {total_motion}\nVibration Alarms: {total_vibration}\n\n"
+                if not zone_df.empty:
+                    message += f"<b>{zone} Zone:</b>\n"
+                    for _, row in zone_df.iterrows():
+                        site_alias = row['Site Alias']
+                        motion_count = int(zone_df[zone_df['Site Alias'] == site_alias]['Type'].eq('Motion').sum())
+                        vibration_count = int(zone_df[zone_df['Site Alias'] == site_alias]['Type'].eq('Vibration').sum())
+                        message += f"Site: {site_alias} | Motion Alarms: {motion_count} | Vibration Alarms: {vibration_count}\n"
+                    message += "\n"
             # Send message
             success = send_to_telegram(message, chat_id="-4537588687", bot_token="7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME")
             if success:
