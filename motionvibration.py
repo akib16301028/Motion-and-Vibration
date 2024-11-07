@@ -57,7 +57,7 @@ def render_styled_table(df):
     styled_df = styled_df.set_properties(**{'font-size': '12px', 'padding': '4px'}).hide(axis='index')  # Smaller font and compact cells
     return styled_df.to_html()
 
-# Function to send data to Telegram
+# Function to send data to Telegram (now sends messages dynamically for each zone)
 def send_to_telegram(message, chat_id, bot_token):
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     payload = {
@@ -88,21 +88,19 @@ if report_motion_file and report_vibration_file:
         selected_time = st.time_input("Select Start Time", value=time(0, 0))
         start_time_filter = datetime.combine(selected_date, selected_time)
         
-        # Button to send data to Telegram
+        # Button to send data to Telegram for each zone
         if st.button("Send Data to Telegram"):
-            message = f"<b>Alarm Summary Report:</b>\n\nStart Date: {selected_date}\nStart Time: {selected_time}\n\n"
             for zone in zone_priority:
                 zone_df = merged_df[(merged_df['Zone'] == zone) & (merged_df['Start Time'] >= start_time_filter)]
                 total_motion = zone_df[zone_df['Type'] == 'Motion'].shape[0]
                 total_vibration = zone_df[zone_df['Type'] == 'Vibration'].shape[0]
                 if total_motion or total_vibration:
-                    message += f"<b>{zone} Zone:</b>\nMotion Alarms: {total_motion}\nVibration Alarms: {total_vibration}\n\n"
-            # Send message
-            success = send_to_telegram(message, chat_id="-4537588687", bot_token="7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME")
-            if success:
-                st.sidebar.success("Data sent to Telegram successfully!")
-            else:
-                st.sidebar.error("Failed to send data to Telegram.")
+                    message = f"<b>{zone} Zone:</b>\nMotion Alarms: {total_motion}\nVibration Alarms: {total_vibration}\n"
+                    success = send_to_telegram(message, chat_id="-4537588687", bot_token="7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME")
+                    if success:
+                        st.sidebar.success(f"Data for {zone} sent to Telegram successfully!")
+                    else:
+                        st.sidebar.error(f"Failed to send data for {zone} to Telegram.")
 
     # Filtered summary based on selected time filter
     summary_df = count_entries_by_zone(merged_df, start_time_filter)
