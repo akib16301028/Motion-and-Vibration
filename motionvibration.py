@@ -27,7 +27,7 @@ def merge_report_files(report_motion_df, report_vibration_df):
 # Function to count occurrences of Motion and Vibration events per Site Alias and Zone
 def count_entries_by_zone(merged_df, start_time_filter=None):
     if start_time_filter:
-        merged_df = merged_df[merged_df['Start Time'] > start_time_filter]
+        merged_df = merged_df[merged_df['Start Time'] >= start_time_filter]
 
     motion_count = merged_df[merged_df['Type'] == 'Motion'].groupby(['Zone', 'Site Alias']).size().reset_index(name='Motion Count')
     vibration_count = merged_df[merged_df['Type'] == 'Vibration'].groupby(['Zone', 'Site Alias']).size().reset_index(name='Vibration Count')
@@ -37,6 +37,33 @@ def count_entries_by_zone(merged_df, start_time_filter=None):
     final_df['Vibration Count'] = final_df['Vibration Count'].astype(int)
     
     return final_df
+
+# Function to generate the Telegram message for each zone
+def generate_telegram_message(zone, zone_df, total_motion, total_vibration, usernames):
+    username_mentions = " ".join([f"@{name}" for name in usernames])
+    
+    # Construct the message based on the specified template
+    message = f"{zone}\n\n"  # Zone name at the top
+    message += f"Total Motion Alarm count: {total_motion}\nTotal Vibration Alarm count: {total_vibration}\n\n"  # Total counts
+    
+    for _, row in zone_df.iterrows():
+        message += f"{row['Site Alias']} : \n"  # Site Alias
+        message += f"Motion Count: {row['Motion Count']}, Vibration Count: {row['Vibration Count']}\n\n"  # Counts for each site
+
+    message += f"{username_mentions} please take care."
+    
+    return message
+
+# Function to send a single Telegram message
+def send_telegram_message(message):
+    chat_id = "-4537588687"
+    bot_token = "7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME"
+    
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    data = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
+    response = requests.post(url, data=data)
+    
+    return response.status_code == 200  # Return True if successful
 
 # Streamlit app
 st.title('Odin-s-Eye - Motion & Vibration Alarm Monitoring')
@@ -61,6 +88,50 @@ if report_motion_file and report_vibration_file:
         # Zone filter option
         zone_filter = st.selectbox("Select Zone to Filter", options=["All"] + zone_priority)
 
+        # Generate message button
+        if st.button("Generate Message", help="Generate alarm summaries for selected zone"):
+            if zone_filter == "All":
+                selected_zones = zone_priority  # All zones if "All" is selected
+            else:
+                selected_zones = [zone_filter]  # Only the selected zone
+
+            summary_df = count_entries_by_zone(merged_df, start_time_filter)
+            summary_df = summary_df[summary_df['Zone'].isin(selected_zones)]  # Filter for selected zones
+            
+            # Clear previous messages from session state
+            st.session_state.messages = {}  # Dictionary to hold messages
+
+            for zone in selected_zones:
+                if zone in summary_df['Zone'].values:
+                    zone_df = summary_df[summary_df['Zone'] == zone]
+                    total_motion = zone_df['Motion Count'].sum()
+                    total_vibration = zone_df['Vibration Count'].sum()
+
+                    # Get all usernames for the zone
+                    usernames = username_df[username_df['Zone'] == zone]['Name'].dropna().unique()
+                    
+                    # Generate the message for this zone
+                    message = generate_telegram_message(zone, zone_df, total_motion, total_vibration, usernames)
+                    st.session_state.messages[zone] = message  # Store message in session state
+
+            if st.session_state.messages:
+                st.success("Messages generated successfully!")
+                st.subheader("Generated Messages")
+                for zone, message in st.session_state.messages.items():
+                    st.text(f"Message for {zone}:")
+                    st.text(message)
+                    st.text("---")
+            else:
+                st.error("No alarms found for the selected zone.")
+
+        # Send notification button
+        if st.button("Send Telegram Notification", help="Send alarm summaries to Telegram"):
+            for zone, message in st.session_state.messages.items():
+                if send_telegram_message(message):
+                    st.success(f"Message sent successfully for {zone}!")
+                else:
+                    st.error(f"Failed to send message for {zone}.")
+        
     # Filtered summary based on selected zone
     summary_df = count_entries_by_zone(merged_df, start_time_filter)
     if zone_filter != "All":
