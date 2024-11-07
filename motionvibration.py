@@ -36,34 +36,10 @@ def count_entries_by_zone(merged_df, start_time_filter=None):
     final_df['Motion Count'] = final_df['Motion Count'].astype(int)
     final_df['Vibration Count'] = final_df['Vibration Count'].astype(int)
     
+    # Add Total Count column for sorting
+    final_df['Total Count'] = final_df['Motion Count'] + final_df['Vibration Count']
+    
     return final_df
-
-# Function to generate the Telegram message for each zone
-def generate_telegram_message(zone, zone_df, total_motion, total_vibration, usernames):
-    username_mentions = " ".join([f"@{name}" for name in usernames])
-    
-    # Construct the message based on the specified template
-    message = f"{zone}\n\n"  # Zone name at the top
-    message += f"Total Motion Alarm count: {total_motion}\nTotal Vibration Alarm count: {total_vibration}\n\n"  # Total counts
-    
-    for _, row in zone_df.iterrows():
-        message += f"{row['Site Alias']} : \n"  # Site Alias
-        message += f"Motion Count: {row['Motion Count']}, Vibration Count: {row['Vibration Count']}\n\n"  # Counts for each site
-
-    message += f"{username_mentions} please take care."
-    
-    return message
-
-# Function to send a single Telegram message
-def send_telegram_message(message):
-    chat_id = "-4537588687"
-    bot_token = "7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME"
-    
-    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    data = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
-    response = requests.post(url, data=data)
-    
-    return response.status_code == 200  # Return True if successful
 
 # Streamlit app
 st.title('Odin-s-Eye - Motion & Vibration Alarm Monitoring')
@@ -78,61 +54,14 @@ if report_motion_file and report_vibration_file:
 
     merged_df = merge_report_files(report_motion_df, report_vibration_df)
 
-    # Sidebar options for date filter and notifications
+    # Sidebar options for date filter
     with st.sidebar:
         # Date and time filter
         selected_date = st.date_input("Select Start Date", value=datetime.now().date())
         selected_time = st.time_input("Select Start Time", value=time(0, 0))
         start_time_filter = datetime.combine(selected_date, selected_time)
 
-        # Zone filter option
-        zone_filter = st.selectbox("Select Zone to Filter", options=["All"] + zone_priority)
-
-        # Generate message button
-        if st.button("Generate Message", help="Generate alarm summaries for selected zone"):
-            if zone_filter == "All":
-                selected_zones = zone_priority  # All zones if "All" is selected
-            else:
-                selected_zones = [zone_filter]  # Only the selected zone
-
-            summary_df = count_entries_by_zone(merged_df, start_time_filter)
-            summary_df = summary_df[summary_df['Zone'].isin(selected_zones)]  # Filter for selected zones
-            
-            # Clear previous messages from session state
-            st.session_state.messages = {}  # Dictionary to hold messages
-
-            for zone in selected_zones:
-                if zone in summary_df['Zone'].values:
-                    zone_df = summary_df[summary_df['Zone'] == zone]
-                    total_motion = zone_df['Motion Count'].sum()
-                    total_vibration = zone_df['Vibration Count'].sum()
-
-                    # Get all usernames for the zone
-                    usernames = username_df[username_df['Zone'] == zone]['Name'].dropna().unique()
-                    
-                    # Generate the message for this zone
-                    message = generate_telegram_message(zone, zone_df, total_motion, total_vibration, usernames)
-                    st.session_state.messages[zone] = message  # Store message in session state
-
-            if st.session_state.messages:
-                st.success("Messages generated successfully!")
-                st.subheader("Generated Messages")
-                for zone, message in st.session_state.messages.items():
-                    st.text(f"Message for {zone}:")
-                    st.text(message)
-                    st.text("---")
-            else:
-                st.error("No alarms found for the selected zone.")
-
-        # Send notification button
-        if st.button("Send Telegram Notification", help="Send alarm summaries to Telegram"):
-            for zone, message in st.session_state.messages.items():
-                if send_telegram_message(message):
-                    st.success(f"Message sent successfully for {zone}!")
-                else:
-                    st.error(f"Failed to send message for {zone}.")
-        
-    # Filtered summary based on selected zone
+    # Filtered summary based on selected time filter
     summary_df = count_entries_by_zone(merged_df, start_time_filter)
 
     # Separate prioritized and non-prioritized zones
@@ -143,11 +72,14 @@ if report_motion_file and report_vibration_file:
     prioritized_df['Zone'] = pd.Categorical(prioritized_df['Zone'], categories=zone_priority, ordered=True)
     prioritized_df = prioritized_df.sort_values('Zone')
 
-    # Display prioritized zones first
+    # Display prioritized zones first, sorted by Total Count in descending order
     for zone in prioritized_df['Zone'].unique():
         st.write(f"### {zone}")
         zone_df = prioritized_df[prioritized_df['Zone'] == zone]
 
+        # Sort by Total Count in descending order
+        zone_df = zone_df.sort_values('Total Count', ascending=False)
+
         # Calculate total counts for the zone
         total_motion = zone_df['Motion Count'].sum()
         total_vibration = zone_df['Vibration Count'].sum()
@@ -157,13 +89,16 @@ if report_motion_file and report_vibration_file:
         st.write(f"Total Vibration Alarm count: {total_vibration}")
 
         # Display the detailed table without the Zone column
-        st.table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count']])
+        st.table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count', 'Total Count']])
 
-    # Display non-prioritized zones in alphabetical order
+    # Display non-prioritized zones in alphabetical order, sorted by Total Count in descending order
     for zone in sorted(non_prioritized_df['Zone'].unique()):
         st.write(f"### {zone}")
         zone_df = non_prioritized_df[non_prioritized_df['Zone'] == zone]
 
+        # Sort by Total Count in descending order
+        zone_df = zone_df.sort_values('Total Count', ascending=False)
+
         # Calculate total counts for the zone
         total_motion = zone_df['Motion Count'].sum()
         total_vibration = zone_df['Vibration Count'].sum()
@@ -173,7 +108,7 @@ if report_motion_file and report_vibration_file:
         st.write(f"Total Vibration Alarm count: {total_vibration}")
 
         # Display the detailed table without the Zone column
-        st.table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count']])
+        st.table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count', 'Total Count']])
 
 else:
     st.write("Please upload both Motion and Vibration Report Data files.")
