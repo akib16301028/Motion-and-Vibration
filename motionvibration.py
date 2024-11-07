@@ -94,13 +94,14 @@ if report_motion_file and report_vibration_file:
                 # Filter the merged_df for each zone and send a message
                 zone_df = merged_df[(merged_df['Zone'] == zone) & (merged_df['Start Time'] >= start_time_filter)]
                 if not zone_df.empty:
-                    message = f"<b>{zone} Zone:</b>\n"
+                    message = f"<b>{zone}:</b>\n\n"
                     site_summary = count_entries_by_zone(zone_df, start_time_filter)
 
                     for _, row in site_summary.iterrows():
-                        message += f"Site Alias: {row['Site Alias']}\n"
-                        message += f"Motion Alarms: {row['Motion Count']}\n"
-                        message += f"Vibration Alarms: {row['Vibration Count']}\n\n"
+                        message += f"{row['Site Alias']}\n"
+                        message += f"Vibration Alarms: {row['Vibration Count']}\n"
+                        message += f"Motion Alarms: {row['Motion Count']}\n\n"
+                        
 
                     # Send the Telegram message
                     success = send_to_telegram(message, chat_id="-4537588687", bot_token="7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME")
