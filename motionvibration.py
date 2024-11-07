@@ -38,6 +38,25 @@ def count_entries_by_zone(merged_df, start_time_filter=None):
     
     return final_df
 
+# Styling function to color cells based on counts and theme
+def highlight_counts(row):
+    theme = "dark" if st.get_option("theme.base") == "dark" else "light"
+    styles = []
+    for val in [row['Motion Count'], row['Vibration Count']]:
+        if val >= 10:
+            styles.append(f'background-color: {"#8B0000" if theme == "dark" else "lightcoral"}; color: white;')  # Dark red/light red for 10+
+        elif val > 0:
+            styles.append(f'background-color: {"#505050" if theme == "dark" else "lightgray"};')  # Dark gray/light gray for counts > 0
+        else:
+            styles.append('')
+    return styles
+
+# Function to render DataFrame as an HTML table with color formatting
+def render_styled_table(df):
+    styled_df = df.style.apply(lambda row: highlight_counts(row), axis=1, subset=['Motion Count', 'Vibration Count'])
+    styled_df = styled_df.set_properties(**{'font-size': '12px', 'padding': '4px'}).hide(axis='index')  # Smaller font and compact cells
+    return styled_df.to_html()
+
 # Function to send data to Telegram
 def send_to_telegram(message, chat_id, bot_token):
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
@@ -75,12 +94,13 @@ if report_motion_file and report_vibration_file:
                 # Filter the merged_df for each zone and send a message
                 zone_df = merged_df[(merged_df['Zone'] == zone) & (merged_df['Start Time'] >= start_time_filter)]
                 if not zone_df.empty:
-                    message = f"<b>{zone}</b>\n"
+                    message = f"<b>{zone} Zone:</b>\n"
                     site_summary = count_entries_by_zone(zone_df, start_time_filter)
 
                     for _, row in site_summary.iterrows():
-                        message += f"{row['Site Alias']}\n"
-                        message += f"Motion Count: {row['Motion Count']}, Vibration Count: {row['Vibration Count']}\n\n"
+                        message += f"Site Alias: {row['Site Alias']}\n"
+                        message += f"Motion Alarms: {row['Motion Count']}\n"
+                        message += f"Vibration Alarms: {row['Vibration Count']}\n\n"
 
                     # Send the Telegram message
                     success = send_to_telegram(message, chat_id="-4537588687", bot_token="7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME")
