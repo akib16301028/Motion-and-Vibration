@@ -103,7 +103,11 @@ if report_motion_file and report_vibration_file:
                     
                     site_summary = count_entries_by_zone(zone_df, start_time_filter)
 
-                    # Add each site’s alarm details
+                    # Sort site summary by total alarm count (Motion + Vibration) in descending order
+                    site_summary['Total Alarm Count'] = site_summary['Motion Count'] + site_summary['Vibration Count']
+                    site_summary = site_summary.sort_values(by='Total Alarm Count', ascending=False)
+
+                    # Add each site’s alarm details in sorted order
                     for _, row in site_summary.iterrows():
                         message += f"{row['Site Alias']}: Vibration: {row['Vibration Count']}, Motion: {row['Motion Count']} \n"
                         
