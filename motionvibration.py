@@ -104,6 +104,25 @@ if report_motion_file and report_vibration_file:
         selected_time = st.time_input("Select Start Time", value=time(0, 0))
         start_time_filter = datetime.combine(selected_date, selected_time)
 
+        # Send notification button
+        if st.button("Send Telegram Notification", help="Send alarm summaries to Telegram for all zones"):
+            for zone in zone_priority:
+                zone_df = merged_df[merged_df['Zone'] == zone]
+
+                # Calculate total motion and vibration counts
+                total_motion = zone_df[zone_df['Type'] == 'Motion']['Motion Count'].sum()
+                total_vibration = zone_df[zone_df['Type'] == 'Vibration']['Vibration Count'].sum()
+
+                # Get usernames for each zone
+                usernames = username_df[username_df['Zone'] == zone]['Name'].dropna().unique()
+
+                # Generate the message for this zone
+                message = generate_telegram_message(zone, zone_df, total_motion, total_vibration, usernames)
+                if send_telegram_message(message):
+                    st.success(f"Message sent successfully for {zone}!")
+                else:
+                    st.error(f"Failed to send message for {zone}.")
+
     # Filtered summary based on selected time filter
     summary_df = count_entries_by_zone(merged_df, start_time_filter)
 
@@ -152,20 +171,5 @@ if report_motion_file and report_vibration_file:
         # Render and display the HTML table with color formatting
         styled_table_html = render_styled_table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count']])
         st.markdown(styled_table_html, unsafe_allow_html=True)
-
-    # Send notification button
-    if st.button("Send Telegram Notification", help="Send alarm summaries to Telegram"):
-        for zone in prioritized_df['Zone'].unique():
-            zone_df = prioritized_df[prioritized_df['Zone'] == zone]
-            total_motion = zone_df['Motion Count'].sum()
-            total_vibration = zone_df['Vibration Count'].sum()
-            usernames = username_df[username_df['Zone'] == zone]['Name'].dropna().unique()
-            
-            # Generate the message for this zone
-            message = generate_telegram_message(zone, zone_df, total_motion, total_vibration, usernames)
-            if send_telegram_message(message):
-                st.success(f"Message sent successfully for {zone}!")
-            else:
-                st.error(f"Failed to send message for {zone}.")
 else:
     st.write("Please upload both Motion and Vibration Report Data files.")
