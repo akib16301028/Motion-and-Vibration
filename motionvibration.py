@@ -98,10 +98,8 @@ if report_motion_file and report_vibration_file:
                     site_summary = count_entries_by_zone(zone_df, start_time_filter)
 
                     for _, row in site_summary.iterrows():
-                        message += f"{row['Site Alias']}: Vibration: {row['Vibration Count']}, Motion: {row['Motion Count']} \n\n"
-                        message += f"Vibration: {row['Vibration Count']}, Motion: {row['Motion Count']}\n\n"
+                        message += f"{row['Site Alias']}: Vibration: {row['Vibration Count']}, Motion: {row['Motion Count']} \n"
                         
-
                     # Send the Telegram message
                     success = send_to_telegram(message, chat_id="-4537588687", bot_token="7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME")
                     if success:
