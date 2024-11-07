@@ -1,156 +1,94 @@
 import pandas as pd
 import streamlit as st
-from datetime import datetime, time
+from datetime import datetime
 import requests
 
-# Load username data from repository
-username_df = pd.read_excel("USER NAME.xlsx")
+# Function to extract the first part of the SiteName before the first underscore
+def extract_site(site_name):
+    return site_name.split('_')[0] if pd.notnull(site_name) and '_' in site_name else site_name
 
-# Define zone priority order for display
-zone_priority = ["Sylhet", "Gazipur", "Shariatpur", "Narayanganj", "Faridpur", "Mymensingh"]
+# Function to merge RMS and Current Alarms data
+def merge_rms_alarms(rms_df, alarms_df):
+    alarms_df['Start Time'] = alarms_df['Alarm Time']
+    alarms_df['End Time'] = pd.NaT  # No End Time in Current Alarms, set to NaT
 
-# Function to preprocess report files
-def preprocess_report(df, alarm_type):
-    df["Type"] = alarm_type  # Specify type as either 'Motion' or 'Vibration'
-    df['Start Time'] = pd.to_datetime(df['Start Time'], errors='coerce')
-    df['End Time'] = pd.to_datetime(df['End Time'], errors='coerce')
-    return df
+    rms_columns = ['Site', 'Site Alias', 'Zone', 'Cluster', 'Start Time', 'End Time']
+    alarms_columns = ['Site', 'Site Alias', 'Zone', 'Cluster', 'Start Time', 'End Time']
 
-# Function to merge motion and vibration data from report files
-def merge_report_files(report_motion_df, report_vibration_df):
-    report_motion_df = preprocess_report(report_motion_df, 'Motion')
-    report_vibration_df = preprocess_report(report_vibration_df, 'Vibration')
-    
-    merged_df = pd.concat([report_motion_df, report_vibration_df], ignore_index=True)
+    merged_df = pd.concat([rms_df[rms_columns], alarms_df[alarms_columns]], ignore_index=True)
     return merged_df
 
-# Function to count occurrences of Motion and Vibration events per Site Alias and Zone
-def count_entries_by_zone(merged_df, start_time_filter=None):
-    if start_time_filter:
-        merged_df = merged_df[merged_df['Start Time'] >= start_time_filter]
+# Function to count entries by zone and site alias
+def count_entries_by_zone(df, start_time_filter):
+    filtered_df = df[pd.to_datetime(df['Start Time'], errors='coerce') > start_time_filter]
+    motion_count = filtered_df[filtered_df['Alarm Type'] == 'Motion'].groupby(['Zone', 'Site Alias']).size().reset_index(name='Motion Count')
+    vibration_count = filtered_df[filtered_df['Alarm Type'] == 'Vibration'].groupby(['Zone', 'Site Alias']).size().reset_index(name='Vibration Count')
+    summary_df = pd.merge(motion_count, vibration_count, on=['Zone', 'Site Alias'], how='outer').fillna(0).astype({'Motion Count': 'int', 'Vibration Count': 'int'})
+    return summary_df
 
-    motion_count = merged_df[merged_df['Type'] == 'Motion'].groupby(['Zone', 'Site Alias']).size().reset_index(name='Motion Count')
-    vibration_count = merged_df[merged_df['Type'] == 'Vibration'].groupby(['Zone', 'Site Alias']).size().reset_index(name='Vibration Count')
-    
-    final_df = pd.merge(motion_count, vibration_count, on=['Zone', 'Site Alias'], how='outer').fillna(0)
-    final_df['Motion Count'] = final_df['Motion Count'].astype(int)
-    final_df['Vibration Count'] = final_df['Vibration Count'].astype(int)
-    
-    return final_df
-
-# Styling function to color cells based on counts and theme
-def highlight_counts(row):
-    theme = "dark" if st.get_option("theme.base") == "dark" else "light"
-    styles = []
-    for val in [row['Motion Count'], row['Vibration Count']]:
-        if val >= 10:
-            styles.append(f'background-color: {"#8B0000" if theme == "dark" else "lightcoral"}; color: white;')  # Dark red/light red for 10+
-        elif val > 0:
-            styles.append(f'background-color: {"#505050" if theme == "dark" else "lightgray"};')  # Dark gray/light gray for counts > 0
-        else:
-            styles.append('')
-    return styles
-
-# Function to render DataFrame as an HTML table with color formatting
-def render_styled_table(df):
-    styled_df = df.style.apply(lambda row: highlight_counts(row), axis=1, subset=['Motion Count', 'Vibration Count'])
-    styled_df = styled_df.set_properties(**{'font-size': '12px', 'padding': '4px'}).hide(axis='index')  # Smaller font and compact cells
-    return styled_df.to_html()
-
-# Function to send data to Telegram
-def send_to_telegram(message, chat_id, bot_token):
+# Function to send a Telegram notification
+def send_telegram_notification(message, bot_token, chat_id):
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     payload = {
         "chat_id": chat_id,
         "text": message,
-        "parse_mode": "HTML"
+        "parse_mode": "Markdown"
     }
-    response = requests.post(url, data=payload)
-    return response.ok
+    response = requests.post(url, json=payload)
+    return response.status_code == 200
+
+# Function to display and send notifications
+def display_and_notify(df, bot_token, chat_id):
+    zones = df['Zone'].unique()
+
+    for zone in zones:
+        zone_df = df[df['Zone'] == zone]
+        # Display data in Streamlit
+        st.write(f"Zone: {zone}")
+        st.table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count']])
+
+        # Build the message
+        total_motion = zone_df['Motion Count'].sum()
+        total_vibration = zone_df['Vibration Count'].sum()
+        message = f"Zone: {zone}\nTotal Motion Alarm Count: {total_motion}\nTotal Vibration Alarm Count: {total_vibration}\n\n"
+        for _, row in zone_df.iterrows():
+            message += f"{row['Site Alias']}\nMotion: {row['Motion Count']}, Vibration: {row['Vibration Count']}\n"
+        
+        # Send message to Telegram
+        if send_telegram_notification(message, bot_token, chat_id):
+            st.success(f"Notification for zone '{zone}' sent successfully!")
+        else:
+            st.error(f"Failed to send notification for zone '{zone}'.")
 
 # Streamlit app
-st.title('Odin-s-Eye - Motion & Vibration Alarm Monitoring')
+st.title("Alarm Data Notification App")
 
-# File upload section (only for report data)
-report_motion_file = st.file_uploader("Upload the Motion Report Data", type=["xlsx"])
-report_vibration_file = st.file_uploader("Upload the Vibration Report Data", type=["xlsx"])
+# File Uploads
+site_access_file = st.file_uploader("Upload the Site Access Excel", type=["xlsx"])
+rms_file = st.file_uploader("Upload the RMS Excel", type=["xlsx"])
+current_alarms_file = st.file_uploader("Upload the Current Alarms Excel", type=["xlsx"])
 
-if report_motion_file and report_vibration_file:
-    report_motion_df = pd.read_excel(report_motion_file, header=2)
-    report_vibration_df = pd.read_excel(report_vibration_file, header=2)
+# Check if all files are uploaded
+if site_access_file and rms_file and current_alarms_file:
+    site_access_df = pd.read_excel(site_access_file)
+    rms_df = pd.read_excel(rms_file, header=2)
+    current_alarms_df = pd.read_excel(current_alarms_file, header=2)
 
-    merged_df = merge_report_files(report_motion_df, report_vibration_df)
+    # Merge RMS and Current Alarms
+    merged_rms_alarms_df = merge_rms_alarms(rms_df, current_alarms_df)
 
-    # Sidebar options for date filter
-    with st.sidebar:
-        # Date and time filter
-        selected_date = st.date_input("Select Start Date", value=datetime.now().date())
-        selected_time = st.time_input("Select Start Time", value=time(0, 0))
-        start_time_filter = datetime.combine(selected_date, selected_time)
-        
-        # Button to send data to Telegram
-        if st.button("Send Data to Telegram"):
-            message = f"<b>Alarm Summary Report:</b>\n\nStart Date: {selected_date}\nStart Time: {selected_time}\n\n"
-            for zone in zone_priority:
-                zone_df = merged_df[(merged_df['Zone'] == zone) & (merged_df['Start Time'] >= start_time_filter)]
-                total_motion = zone_df[zone_df['Type'] == 'Motion'].shape[0]
-                total_vibration = zone_df[zone_df['Type'] == 'Vibration'].shape[0]
-                if total_motion or total_vibration:
-                    message += f"<b>{zone} Zone:</b>\nMotion Alarms: {total_motion}\nVibration Alarms: {total_vibration}\n\n"
-            # Send message
-            success = send_to_telegram(message, chat_id="-4537588687", bot_token="7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME")
-            if success:
-                st.sidebar.success("Data sent to Telegram successfully!")
-            else:
-                st.sidebar.error("Failed to send data to Telegram.")
+    # Filter inputs (date and time)
+    selected_date = st.date_input("Select Date", value=datetime.now().date())
+    selected_time = st.time_input("Select Time", value=datetime.now().time())
+    filter_datetime = datetime.combine(selected_date, selected_time)
 
-    # Filtered summary based on selected time filter
-    summary_df = count_entries_by_zone(merged_df, start_time_filter)
+    # Get the summary data by zone
+    summary_df = count_entries_by_zone(merged_rms_alarms_df, filter_datetime)
 
-    # Separate prioritized and non-prioritized zones
-    prioritized_df = summary_df[summary_df['Zone'].isin(zone_priority)]
-    non_prioritized_df = summary_df[~summary_df['Zone'].isin(zone_priority)]
-
-    # Sort prioritized zones according to the order in zone_priority
-    prioritized_df['Zone'] = pd.Categorical(prioritized_df['Zone'], categories=zone_priority, ordered=True)
-    prioritized_df = prioritized_df.sort_values('Zone')
-
-    # Display prioritized zones first, sorted by total motion and vibration counts in descending order
-    for zone in prioritized_df['Zone'].unique():
-        st.write(f"### {zone}")
-        zone_df = prioritized_df[prioritized_df['Zone'] == zone]
-
-        # Sort by total motion and vibration counts (sum of both)
-        zone_df['Total Alarm Count'] = zone_df['Motion Count'] + zone_df['Vibration Count']
-        zone_df = zone_df.sort_values('Total Alarm Count', ascending=False)
-
-        # Display the total alarm count as in the original format
-        total_motion = zone_df['Motion Count'].sum()
-        total_vibration = zone_df['Vibration Count'].sum()
-        st.write(f"Total Motion Alarm count: {total_motion}")
-        st.write(f"Total Vibration Alarm count: {total_vibration}")
-
-        # Render and display the HTML table with color formatting
-        styled_table_html = render_styled_table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count']])
-        st.markdown(styled_table_html, unsafe_allow_html=True)
-
-    # Display non-prioritized zones in alphabetical order, sorted by total motion and vibration counts
-    for zone in sorted(non_prioritized_df['Zone'].unique()):
-        st.write(f"### {zone}")
-        zone_df = non_prioritized_df[non_prioritized_df['Zone'] == zone]
-
-        # Sort by total motion and vibration counts (sum of both)
-        zone_df['Total Alarm Count'] = zone_df['Motion Count'] + zone_df['Vibration Count']
-        zone_df = zone_df.sort_values('Total Alarm Count', ascending=False)
-
-        # Display the total alarm count as in the original format
-        total_motion = zone_df['Motion Count'].sum()
-        total_vibration = zone_df['Vibration Count'].sum()
-        st.write(f"Total Motion Alarm count: {total_motion}")
-        st.write(f"Total Vibration Alarm count: {total_vibration}")
-
-        # Render and display the HTML table with color formatting
-        styled_table_html = render_styled_table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count']])
-        st.markdown(styled_table_html, unsafe_allow_html=True)
-else:
-    st.write("Please upload both Motion and Vibration Report Data files.")
+    # Telegram Bot Token and Chat ID
+    bot_token = "7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME"
+    chat_id = "-4537588687"
+    
+    # Button to send the Telegram notifications
+    if st.button("Send Notifications"):
+        display_and_notify(summary_df, bot_token, chat_id)
