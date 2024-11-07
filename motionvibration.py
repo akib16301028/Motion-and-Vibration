@@ -89,39 +89,33 @@ if report_motion_file and report_vibration_file:
         start_time_filter = datetime.combine(selected_date, selected_time)
         
         # Button to send data to Telegram
-if st.button("Send Data to Telegram"):
-    for zone in zone_priority:
-        # Get the zonal concern for the current zone
-        concern = username_df[username_df['Zone'] == zone]['Name'].values
-        zonal_concern = concern[0] if len(concern) > 0 else "Unknown Concern"
-        
-        # Filter the merged_df for each zone and send a message
-        zone_df = merged_df[(merged_df['Zone'] == zone) & (merged_df['Start Time'] >= start_time_filter)]
-        if not zone_df.empty:
-            # Message header with zone name and filter time
-            message = f"<b>{zone}:</b>\nAlarm came after: {start_time_filter.strftime('%Y-%m-%d %I:%M %p')}\n\n"
-            
-            # Get site summary and calculate total counts
-            site_summary = count_entries_by_zone(zone_df, start_time_filter)
-            site_summary['Total Count'] = site_summary['Motion Count'] + site_summary['Vibration Count']
-            
-            # Sort by total count in descending order
-            site_summary = site_summary.sort_values(by='Total Count', ascending=False)
-            
-            # Add each site’s alarm details in sorted order
-            for _, row in site_summary.iterrows():
-                message += f"{row['Site Alias']}: Vibration: {row['Vibration Count']}, Motion: {row['Motion Count']} \n"
-            
-            # Add the zonal concern at the end of the message
-            message += f"\n@{zonal_concern}, please take care."
+        if st.button("Send Data to Telegram"):
+            for zone in zone_priority:
+                # Get the zonal concern for the current zone
+                concern = username_df[username_df['Zone'] == zone]['Name'].values
+                zonal_concern = concern[0] if len(concern) > 0 else "Unknown Concern"
+                
+                # Filter the merged_df for each zone and send a message
+                zone_df = merged_df[(merged_df['Zone'] == zone) & (merged_df['Start Time'] >= start_time_filter)]
+                if not zone_df.empty:
+                    # Message header with zone name and filter time
+                    message = f"<b>{zone}:</b>\nAlarm came after: {start_time_filter.strftime('%Y-%m-%d %I:%M %p')}\n\n"
+                    
+                    site_summary = count_entries_by_zone(zone_df, start_time_filter)
 
-            # Send the Telegram message
-            success = send_to_telegram(message, chat_id="-4537588687", bot_token="7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME")
-            if success:
-                st.sidebar.success(f"Data for {zone} sent to Telegram successfully!")
-            else:
-                st.sidebar.error(f"Failed to send data for {zone} to Telegram.")
+                    # Add each site’s alarm details
+                    for _, row in site_summary.iterrows():
+                        message += f"{row['Site Alias']}: Vibration: {row['Vibration Count']}, Motion: {row['Motion Count']} \n"
+                        
+                    # Add the zonal concern at the end of the message
+                    message += f"\n@{zonal_concern}, please take care."
 
+                    # Send the Telegram message
+                    success = send_to_telegram(message, chat_id="-4537588687", bot_token="7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME")
+                    if success:
+                        st.sidebar.success(f"Data for {zone} sent to Telegram successfully!")
+                    else:
+                        st.sidebar.error(f"Failed to send data for {zone} to Telegram.")
 
     # Filtered summary based on selected time filter
     summary_df = count_entries_by_zone(merged_df, start_time_filter)
