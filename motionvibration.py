@@ -38,39 +38,21 @@ def count_entries_by_zone(merged_df, start_time_filter=None):
     
     return final_df
 
-# Styling function to color cells based on counts and theme
-def highlight_counts(row):
-    theme = "dark" if st.get_option("theme.base") == "dark" else "light"
-    styles = []
-    for val in [row['Motion Count'], row['Vibration Count']]:
-        if val >= 10:
-            styles.append(f'background-color: {"#8B0000" if theme == "dark" else "lightcoral"}; color: white;')  # Dark red/light red for 10+
-        elif val > 0:
-            styles.append(f'background-color: {"#505050" if theme == "dark" else "lightgray"};')  # Dark gray/light gray for counts > 0
-        else:
-            styles.append('')
-    return styles
-
-# Function to render DataFrame as an HTML table with color formatting
-def render_styled_table(df):
-    styled_df = df.style.apply(lambda row: highlight_counts(row), axis=1, subset=['Motion Count', 'Vibration Count'])
-    styled_df = styled_df.set_properties(**{'font-size': '12px', 'padding': '4px'}).hide(axis='index')  # Smaller font and compact cells
-    return styled_df.to_html()
-
 # Function to generate the Telegram message for each zone
 def generate_telegram_message_for_zone(zone, zone_df):
-    message = f"**{zone} Alarm Summary:**\n\n"
-    
-    # Ensure the required columns are in the dataframe
+    # Check if the necessary columns exist
     if 'Motion Count' not in zone_df.columns or 'Vibration Count' not in zone_df.columns:
-        message += "Error: Missing required columns (Motion Count or Vibration Count).\n"
-        return message
-    
-    # Add Motion and Vibration counts for each site in the zone
+        st.error(f"Error: Missing required columns (Motion Count or Vibration Count) in zone {zone}")
+        return None
+
+    # Initialize message
+    message = f"{zone} Alarm Summary:\n\n"
+
+    # Loop through the rows and generate the message
     for _, row in zone_df.iterrows():
-        message += f"**{row['Site Alias']}**:\n"
+        message += f"Site Alias: {row['Site Alias']}\n"
         message += f"Motion Count: {row['Motion Count']}, Vibration Count: {row['Vibration Count']}\n\n"
-    
+
     return message
 
 # Function to send a single Telegram message
@@ -111,11 +93,12 @@ if report_motion_file and report_vibration_file:
 
                 # Generate the message for this zone
                 message = generate_telegram_message_for_zone(zone, zone_df)
-                if send_telegram_message(message):
-                    st.success(f"Message sent successfully for {zone}!")
-                else:
-                    st.error(f"Failed to send message for {zone}.")
-
+                if message:
+                    if send_telegram_message(message):
+                        st.success(f"Message sent successfully for {zone}!")
+                    else:
+                        st.error(f"Failed to send message for {zone}.")
+    
     # Filtered summary based on selected time filter
     summary_df = count_entries_by_zone(merged_df, start_time_filter)
 
@@ -142,9 +125,8 @@ if report_motion_file and report_vibration_file:
         st.write(f"Total Motion Alarm count: {total_motion}")
         st.write(f"Total Vibration Alarm count: {total_vibration}")
 
-        # Render and display the HTML table with color formatting
-        styled_table_html = render_styled_table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count']])
-        st.markdown(styled_table_html, unsafe_allow_html=True)
+        # Render and display the table
+        st.dataframe(zone_df[['Site Alias', 'Motion Count', 'Vibration Count']])
 
     # Display non-prioritized zones in alphabetical order, sorted by total motion and vibration counts
     for zone in sorted(non_prioritized_df['Zone'].unique()):
@@ -161,8 +143,8 @@ if report_motion_file and report_vibration_file:
         st.write(f"Total Motion Alarm count: {total_motion}")
         st.write(f"Total Vibration Alarm count: {total_vibration}")
 
-        # Render and display the HTML table with color formatting
-        styled_table_html = render_styled_table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count']])
-        st.markdown(styled_table_html, unsafe_allow_html=True)
+        # Render and display the table
+        st.dataframe(zone_df[['Site Alias', 'Motion Count', 'Vibration Count']])
+
 else:
     st.write("Please upload both Motion and Vibration Report Data files.")
