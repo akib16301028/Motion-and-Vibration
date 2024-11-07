@@ -41,7 +41,7 @@ def count_entries_by_zone(merged_df, start_time_filter=None):
 # Streamlit app
 st.title('Odin-s-Eye - Motion & Vibration Alarm Monitoring')
 
-# File upload section
+# File upload section (only for report data)
 report_motion_file = st.file_uploader("Upload the Motion Report Data", type=["xlsx"])
 report_vibration_file = st.file_uploader("Upload the Vibration Report Data", type=["xlsx"])
 
@@ -83,4 +83,4 @@ if report_motion_file and report_vibration_file:
         st.table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count']])
 
 else:
-    st.write("Please upload all required files.")
+    st.write("Please upload both Motion and Vibration Report Data files.")
