@@ -1,7 +1,6 @@
 import pandas as pd
 import streamlit as st
 from datetime import datetime, time
-import requests
 
 # Load username data from repository
 username_df = pd.read_excel("USER NAME.xlsx")
@@ -40,6 +39,16 @@ def count_entries_by_zone(merged_df, start_time_filter=None):
     final_df['Total Count'] = final_df['Motion Count'] + final_df['Vibration Count']
     
     return final_df
+
+# Styling function to color cells based on conditions
+def highlight_counts(val):
+    if val >= 10:
+        color = 'background-color: lightcoral;'  # light red for 10+
+    elif val > 0:
+        color = 'background-color: lightgray;'   # light gray for counts greater than 0
+    else:
+        color = ''
+    return color
 
 # Streamlit app
 st.title('Odin-s-Eye - Motion & Vibration Alarm Monitoring')
@@ -80,16 +89,15 @@ if report_motion_file and report_vibration_file:
         # Sort by Total Count in descending order
         zone_df = zone_df.sort_values('Total Count', ascending=False)
 
-        # Calculate total counts for the zone
-        total_motion = zone_df['Motion Count'].sum()
-        total_vibration = zone_df['Vibration Count'].sum()
+        # Apply conditional formatting
+        styled_df = zone_df[['Site Alias', 'Motion Count', 'Vibration Count', 'Total Count']].style.applymap(
+            highlight_counts, subset=['Motion Count', 'Vibration Count']
+        )
 
-        # Display total counts
-        st.write(f"Total Motion Alarm count: {total_motion}")
-        st.write(f"Total Vibration Alarm count: {total_vibration}")
-
-        # Display the detailed table without the Zone column
-        st.table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count', 'Total Count']])
+        # Display the table with styled formatting
+        st.write(f"Total Motion Alarm count: {zone_df['Motion Count'].sum()}")
+        st.write(f"Total Vibration Alarm count: {zone_df['Vibration Count'].sum()}")
+        st.dataframe(styled_df, height=400)
 
     # Display non-prioritized zones in alphabetical order, sorted by Total Count in descending order
     for zone in sorted(non_prioritized_df['Zone'].unique()):
@@ -99,16 +107,15 @@ if report_motion_file and report_vibration_file:
         # Sort by Total Count in descending order
         zone_df = zone_df.sort_values('Total Count', ascending=False)
 
-        # Calculate total counts for the zone
-        total_motion = zone_df['Motion Count'].sum()
-        total_vibration = zone_df['Vibration Count'].sum()
+        # Apply conditional formatting
+        styled_df = zone_df[['Site Alias', 'Motion Count', 'Vibration Count', 'Total Count']].style.applymap(
+            highlight_counts, subset=['Motion Count', 'Vibration Count']
+        )
 
-        # Display total counts
-        st.write(f"Total Motion Alarm count: {total_motion}")
-        st.write(f"Total Vibration Alarm count: {total_vibration}")
-
-        # Display the detailed table without the Zone column
-        st.table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count', 'Total Count']])
+        # Display the table with styled formatting
+        st.write(f"Total Motion Alarm count: {zone_df['Motion Count'].sum()}")
+        st.write(f"Total Vibration Alarm count: {zone_df['Vibration Count'].sum()}")
+        st.dataframe(styled_df, height=400)
 
 else:
     st.write("Please upload both Motion and Vibration Report Data files.")
