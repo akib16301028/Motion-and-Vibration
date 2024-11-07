@@ -69,7 +69,7 @@ def send_to_telegram(message, chat_id, bot_token):
     return response.ok
 
 # Streamlit app
-st.title('Odin-s-Eye - Motion & Vibration Alarm Monitoring')
+st.title('PulseX - Motion & Vibration Alarm Monitoring')
 
 # File upload section (only for report data)
 report_motion_file = st.file_uploader("Upload the Motion Report Data", type=["xlsx"])
