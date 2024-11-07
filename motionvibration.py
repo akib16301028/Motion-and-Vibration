@@ -44,9 +44,9 @@ def highlight_counts(row):
     styles = []
     for val in [row['Motion Count'], row['Vibration Count']]:
         if val >= 10:
-            styles.append(f'background-color: {"#8B0000" if theme == "dark" else "lightcoral"}; color: white;')  # Dark red/light red for 10+
+            styles.append(f'background-color: {"#8B0000" if theme == "dark" else "lightcoral"}; color: white;')
         elif val > 0:
-            styles.append(f'background-color: {"#505050" if theme == "dark" else "lightgray"};')  # Dark gray/light gray for counts > 0
+            styles.append(f'background-color: {"#505050" if theme == "dark" else "lightgray"};')
         else:
             styles.append('')
     return styles
@@ -54,7 +54,7 @@ def highlight_counts(row):
 # Function to render DataFrame as an HTML table with color formatting
 def render_styled_table(df):
     styled_df = df.style.apply(lambda row: highlight_counts(row), axis=1, subset=['Motion Count', 'Vibration Count'])
-    styled_df = styled_df.set_properties(**{'font-size': '12px', 'padding': '4px'}).hide(axis='index')  # Smaller font and compact cells
+    styled_df = styled_df.set_properties(**{'font-size': '12px', 'padding': '4px'}).hide(axis='index')
     return styled_df.to_html()
 
 # Function to send data to Telegram
@@ -91,15 +91,25 @@ if report_motion_file and report_vibration_file:
         # Button to send data to Telegram
         if st.button("Send Data to Telegram"):
             for zone in zone_priority:
+                # Get the zonal concern for the current zone
+                concern = username_df[username_df['Zone'] == zone]['Name'].values
+                zonal_concern = concern[0] if len(concern) > 0 else "Unknown Concern"
+                
                 # Filter the merged_df for each zone and send a message
                 zone_df = merged_df[(merged_df['Zone'] == zone) & (merged_df['Start Time'] >= start_time_filter)]
                 if not zone_df.empty:
-                    message = f"<b>{zone}:</b>\n\n"
+                    # Message header with zone name and filter time
+                    message = f"<b>{zone}:</b>\nAlarm came after: {start_time_filter.strftime('%Y-%m-%d %I:%M %p')}\n\n"
+                    
                     site_summary = count_entries_by_zone(zone_df, start_time_filter)
 
+                    # Add each site’s alarm details
                     for _, row in site_summary.iterrows():
                         message += f"{row['Site Alias']}: Vibration: {row['Vibration Count']}, Motion: {row['Motion Count']} \n"
                         
+                    # Add the zonal concern at the end of the message
+                    message += f"\n@{zonal_concern}, please take care."
+
                     # Send the Telegram message
                     success = send_to_telegram(message, chat_id="-4537588687", bot_token="7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME")
                     if success:
