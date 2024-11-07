@@ -6,7 +6,7 @@ import requests
 # Load username data from repository
 username_df = pd.read_excel("USER NAME.xlsx")
 
-# Define zone priority order for Telegram notifications
+# Define zone priority order for display and Telegram notifications
 zone_priority = ["Sylhet", "Gazipur", "Shariatpur", "Narayanganj", "Faridpur", "Mymensingh"]
 
 # Function to preprocess report files
@@ -134,13 +134,35 @@ if report_motion_file and report_vibration_file:
         
     # Filtered summary based on selected zone
     summary_df = count_entries_by_zone(merged_df, start_time_filter)
-    if zone_filter != "All":
-        summary_df = summary_df[summary_df['Zone'] == zone_filter]
 
-    zones = summary_df['Zone'].unique()
-    for zone in zones:
+    # Separate prioritized and non-prioritized zones
+    prioritized_df = summary_df[summary_df['Zone'].isin(zone_priority)]
+    non_prioritized_df = summary_df[~summary_df['Zone'].isin(zone_priority)]
+
+    # Sort prioritized zones according to the order in zone_priority
+    prioritized_df['Zone'] = pd.Categorical(prioritized_df['Zone'], categories=zone_priority, ordered=True)
+    prioritized_df = prioritized_df.sort_values('Zone')
+
+    # Display prioritized zones first
+    for zone in prioritized_df['Zone'].unique():
         st.write(f"### {zone}")
-        zone_df = summary_df[summary_df['Zone'] == zone]
+        zone_df = prioritized_df[prioritized_df['Zone'] == zone]
+
+        # Calculate total counts for the zone
+        total_motion = zone_df['Motion Count'].sum()
+        total_vibration = zone_df['Vibration Count'].sum()
+
+        # Display total counts
+        st.write(f"Total Motion Alarm count: {total_motion}")
+        st.write(f"Total Vibration Alarm count: {total_vibration}")
+
+        # Display the detailed table without the Zone column
+        st.table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count']])
+
+    # Display non-prioritized zones in alphabetical order
+    for zone in sorted(non_prioritized_df['Zone'].unique()):
+        st.write(f"### {zone}")
+        zone_df = non_prioritized_df[non_prioritized_df['Zone'] == zone]
 
         # Calculate total counts for the zone
         total_motion = zone_df['Motion Count'].sum()
