@@ -41,14 +41,22 @@ def count_entries_by_zone(merged_df, start_time_filter=None):
     return final_df
 
 # Styling function to color cells based on conditions
-def highlight_counts(val):
-    if val >= 10:
-        color = 'background-color: lightcoral;'  # light red for 10+
-    elif val > 0:
-        color = 'background-color: lightgray;'   # light gray for counts greater than 0
-    else:
-        color = ''
-    return color
+def highlight_counts(row):
+    styles = []
+    for val in [row['Motion Count'], row['Vibration Count']]:
+        if val >= 10:
+            styles.append('background-color: lightcoral; color: white;')  # light red for 10+
+        elif val > 0:
+            styles.append('background-color: lightgray;')
+        else:
+            styles.append('')
+    return styles
+
+# Function to render DataFrame as an HTML table with color formatting
+def render_styled_table(df):
+    styled_df = df.style.apply(lambda row: highlight_counts(row), axis=1, subset=['Motion Count', 'Vibration Count'])
+    styled_df = styled_df.hide(axis='index')  # Hide the index for cleaner look
+    return styled_df.to_html()
 
 # Streamlit app
 st.title('Odin-s-Eye - Motion & Vibration Alarm Monitoring')
@@ -89,15 +97,9 @@ if report_motion_file and report_vibration_file:
         # Sort by Total Count in descending order
         zone_df = zone_df.sort_values('Total Count', ascending=False)
 
-        # Apply conditional formatting
-        styled_df = zone_df[['Site Alias', 'Motion Count', 'Vibration Count', 'Total Count']].style.applymap(
-            highlight_counts, subset=['Motion Count', 'Vibration Count']
-        )
-
-        # Display the table with styled formatting
-        st.write(f"Total Motion Alarm count: {zone_df['Motion Count'].sum()}")
-        st.write(f"Total Vibration Alarm count: {zone_df['Vibration Count'].sum()}")
-        st.dataframe(styled_df, height=400)
+        # Render and display the HTML table with color formatting
+        styled_table_html = render_styled_table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count', 'Total Count']])
+        st.markdown(styled_table_html, unsafe_allow_html=True)
 
     # Display non-prioritized zones in alphabetical order, sorted by Total Count in descending order
     for zone in sorted(non_prioritized_df['Zone'].unique()):
@@ -107,15 +109,9 @@ if report_motion_file and report_vibration_file:
         # Sort by Total Count in descending order
         zone_df = zone_df.sort_values('Total Count', ascending=False)
 
-        # Apply conditional formatting
-        styled_df = zone_df[['Site Alias', 'Motion Count', 'Vibration Count', 'Total Count']].style.applymap(
-            highlight_counts, subset=['Motion Count', 'Vibration Count']
-        )
-
-        # Display the table with styled formatting
-        st.write(f"Total Motion Alarm count: {zone_df['Motion Count'].sum()}")
-        st.write(f"Total Vibration Alarm count: {zone_df['Vibration Count'].sum()}")
-        st.dataframe(styled_df, height=400)
+        # Render and display the HTML table with color formatting
+        styled_table_html = render_styled_table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count', 'Total Count']])
+        st.markdown(styled_table_html, unsafe_allow_html=True)
 
 else:
     st.write("Please upload both Motion and Vibration Report Data files.")
