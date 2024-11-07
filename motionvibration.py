@@ -57,7 +57,7 @@ def render_styled_table(df):
     styled_df = styled_df.set_properties(**{'font-size': '12px', 'padding': '4px'}).hide(axis='index')  # Smaller font and compact cells
     return styled_df.to_html()
 
-# Function to send data to Telegram (now includes Site Alias, Motion Count, and Vibration Count)
+# Function to send data to Telegram
 def send_to_telegram(message, chat_id, bot_token):
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     payload = {
@@ -88,32 +88,26 @@ if report_motion_file and report_vibration_file:
         selected_time = st.time_input("Select Start Time", value=time(0, 0))
         start_time_filter = datetime.combine(selected_date, selected_time)
         
-        # Button to send data to Telegram for each zone
+        # Button to send data to Telegram
         if st.button("Send Data to Telegram"):
             for zone in zone_priority:
+                # Filter the merged_df for each zone and send a message
                 zone_df = merged_df[(merged_df['Zone'] == zone) & (merged_df['Start Time'] >= start_time_filter)]
-                
-                # Group by Site Alias and get counts
-                site_alias_summary = zone_df.groupby('Site Alias').agg({
-                    'Type': lambda x: (x == 'Motion').sum(), 
-                    'Type': lambda x: (x == 'Vibration').sum()
-                }).rename(columns={'Type': 'Motion Count', 'Type': 'Vibration Count'}).reset_index()
+                if not zone_df.empty:
+                    message = f"<b>{zone} Zone:</b>\n"
+                    site_summary = count_entries_by_zone(zone_df, start_time_filter)
 
-                # Initialize message for this zone
-                message = f"<b>{zone} Zone:</b>\n"
-                
-                # Loop through site aliases and append counts to the message
-                for index, row in site_alias_summary.iterrows():
-                    message += f"Site Alias: {row['Site Alias']}\n"
-                    message += f"Motion Alarms: {row['Motion Count']}\n"
-                    message += f"Vibration Alarms: {row['Vibration Count']}\n\n"
-                
-                # Send message for this zone
-                success = send_to_telegram(message, chat_id="-4537588687", bot_token="7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME")
-                if success:
-                    st.sidebar.success(f"Data for {zone} sent to Telegram successfully!")
-                else:
-                    st.sidebar.error(f"Failed to send data for {zone} to Telegram.")
+                    for _, row in site_summary.iterrows():
+                        message += f"Site Alias: {row['Site Alias']}\n"
+                        message += f"Motion Alarms: {row['Motion Count']}\n"
+                        message += f"Vibration Alarms: {row['Vibration Count']}\n\n"
+
+                    # Send the Telegram message
+                    success = send_to_telegram(message, chat_id="-4537588687", bot_token="7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME")
+                    if success:
+                        st.sidebar.success(f"Data for {zone} sent to Telegram successfully!")
+                    else:
+                        st.sidebar.error(f"Failed to send data for {zone} to Telegram.")
 
     # Filtered summary based on selected time filter
     summary_df = count_entries_by_zone(merged_df, start_time_filter)
