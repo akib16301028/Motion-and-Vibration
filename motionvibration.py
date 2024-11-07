@@ -115,7 +115,7 @@ if report_motion_file and report_vibration_file:
                     message += f"\n@{zonal_concern}, please take care."
 
                     # Send the Telegram message
-                    success = send_to_telegram(message, chat_id="-4537588687", bot_token="7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME")
+                    success = send_to_telegram(message, chat_id="-1001509039244", bot_token="7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME")
                     if success:
                         st.sidebar.success(f"Data for {zone} sent to Telegram successfully!")
                     else:
