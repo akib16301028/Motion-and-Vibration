@@ -153,7 +153,7 @@ if report_motion_file and report_vibration_file:
                         st.sidebar.error(f"Failed to send data for {zone} to Telegram.")
 
         # Option to update/add zonal concerns
-        st.write("### Add/Update Zonal Concern")
+        st.write("### Add/Remove Zonal Concern")
         selected_zone = st.selectbox("Select Zone", options=username_df['Zone'].unique())
         current_concern = username_df.loc[username_df['Zone'] == selected_zone, 'Name'].values[0]
         new_concern = st.text_input("Edit Zonal Concern", value=current_concern)
