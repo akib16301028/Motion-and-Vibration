@@ -151,13 +151,22 @@ if report_motion_file and report_vibration_file:
                     else:
                         st.sidebar.error(f"Failed to send data for {zone} to Telegram.")
 
-        # Option to update/add zonal concerns
-        st.write("### Add/Update Zonal Concern")
-        selected_zone = st.selectbox("Select Zone", options=username_df['Zone'].unique())
-        current_concern = username_df.loc[username_df['Zone'] == selected_zone, 'Name'].values[0]
-        new_concern = st.text_input("Edit Zonal Concern", value=current_concern)
-        if st.button("Update Concern"):
-            update_username_file(selected_zone, new_concern)
+# Option to update/add multiple zonal concerns at once
+st.write("### Add/Update Zonal Concerns")
+selected_zones = st.multiselect("Select Zones", options=username_df['Zone'].unique())
+
+# Create a dictionary to store new concerns for selected zones
+new_concern_dict = {}
+for zone in selected_zones:
+    current_concern = username_df.loc[username_df['Zone'] == zone, 'Name'].values[0]
+    new_concern = st.text_input(f"Edit Zonal Concern for {zone}", value=current_concern, key=zone)
+    new_concern_dict[zone] = new_concern
+
+if st.button("Update Concerns"):
+    for zone, new_concern in new_concern_dict.items():
+        update_username_file(zone, new_concern)
+    st.sidebar.success("Zonal concerns updated successfully!")
+
 
     # Filtered summary based on selected time filter
     summary_df = count_entries_by_zone(merged_df, start_time_filter)
