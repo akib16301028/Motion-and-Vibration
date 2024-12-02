@@ -18,9 +18,8 @@ if report_motion_file and report_vibration_file:
         selected_time = st.time_input("Select Start Time", value=time(0, 0))
         start_time_filter = datetime.combine(selected_date, selected_time)
 
-        # Option to send notifications for prioritized zones
-        st.write("### Notifications for Prioritized Zones")
-        if st.button("Send to Prioritized Zones"):
+        # Button to send data to Telegram for prioritized zones
+        if st.button("Send Data to Prioritized Zones"):
             for zone in zone_priority:
                 concern = username_df[username_df['Zone'] == zone]['Name'].values
                 zonal_concern = concern[0] if len(concern) > 0 else "Unknown Concern"
@@ -39,14 +38,14 @@ if report_motion_file and report_vibration_file:
                     else:
                         st.sidebar.error(f"Failed to send data for {zone} to Telegram.")
 
-        # Option to send notifications for other zones
-        st.write("### Notifications for Other Zones")
+        # Option to send SMS to other zones
+        st.write("### Additional Zones")
         additional_zones = st.multiselect(
-            "Select Zones for Notifications",
+            "Select Zones to Send SMS",
             options=merged_df['Zone'].unique(),
             default=[]
         )
-        if st.button("Send to Selected Zones"):
+        if st.button("Send Data to Additional Zones"):
             for zone in additional_zones:
                 concern = username_df[username_df['Zone'] == zone]['Name'].values
                 zonal_concern = concern[0] if len(concern) > 0 else "Unknown Concern"
