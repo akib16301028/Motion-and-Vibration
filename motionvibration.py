@@ -4,8 +4,7 @@ from datetime import datetime, time
 import requests
 
 # Load username data from repository
-username_file_path = "USER NAME.xlsx"
-username_df = pd.read_excel(username_file_path)
+username_df = pd.read_excel("USER NAME.xlsx")
 
 # Define zone priority order for display
 zone_priority = ["Sylhet", "Gazipur", "Shariatpur", "Narayanganj", "Faridpur", "Mymensingh"]
@@ -21,6 +20,7 @@ def preprocess_report(df, alarm_type):
 def merge_report_files(report_motion_df, report_vibration_df):
     report_motion_df = preprocess_report(report_motion_df, 'Motion')
     report_vibration_df = preprocess_report(report_vibration_df, 'Vibration')
+    
     merged_df = pd.concat([report_motion_df, report_vibration_df], ignore_index=True)
     return merged_df
 
@@ -38,6 +38,25 @@ def count_entries_by_zone(merged_df, start_time_filter=None):
     
     return final_df
 
+# Styling function to color cells based on counts and theme
+def highlight_counts(row):
+    theme = "dark" if st.get_option("theme.base") == "dark" else "light"
+    styles = []
+    for val in [row['Motion Count'], row['Vibration Count']]:
+        if val >= 10:
+            styles.append(f'background-color: {"#8B0000" if theme == "dark" else "lightcoral"}; color: white;')
+        elif val > 0:
+            styles.append(f'background-color: {"#505050" if theme == "dark" else "lightgray"};')
+        else:
+            styles.append('')
+    return styles
+
+# Function to render DataFrame as an HTML table with color formatting
+def render_styled_table(df):
+    styled_df = df.style.apply(lambda row: highlight_counts(row), axis=1, subset=['Motion Count', 'Vibration Count'])
+    styled_df = styled_df.set_properties(**{'font-size': '12px', 'padding': '4px'}).hide(axis='index')
+    return styled_df.to_html()
+
 # Function to send data to Telegram
 def send_to_telegram(message, chat_id, bot_token):
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
@@ -48,13 +67,6 @@ def send_to_telegram(message, chat_id, bot_token):
     }
     response = requests.post(url, data=payload)
     return response.ok
-
-# Function to update the username file
-def update_username_file(zone, new_concern):
-    global username_df
-    username_df.loc[username_df['Zone'] == zone, 'Name'] = new_concern
-    username_df.to_excel(username_file_path, index=False)  # Save changes back to the file
-    st.success(f"Zonal concern for {zone} updated to {new_concern}.")
 
 # Streamlit app
 st.title('PulseForge')
