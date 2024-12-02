@@ -95,50 +95,117 @@ if report_motion_file and report_vibration_file:
 
     # Sidebar options
     with st.sidebar:
-        st.header("Zonal Concerns")
+        st.header("Notifications")
         
-        # Display zones and their concerns in a table
-        if "username_data" not in st.session_state:
-            st.session_state.username_data = username_df  # Initialize session state for concerns
-            
-        # Editable fields for zone concerns
-        editable_df = st.session_state.username_data.copy()
-        editable_df['Edit'] = editable_df['Name'].apply(lambda x: st.text_input(f'Edit {x}', value=x))
-
-        # Update the concerns with new values from the editable fields
-        if st.button("Update All Concerns"):
-            for idx, row in editable_df.iterrows():
-                if row['Edit'] != row['Name']:
-                    update_username_file(row['Zone'], row['Edit'])
-            st.success("Concerns updated successfully!")
-
-        # Display the updated table for the zones and concerns
-        st.write("### Zones and Their Concerns")
-        st.write(editable_df.drop(columns=['Name']))  # Show the edited version with text inputs
+        # Date and time filter
+        selected_date = st.date_input("Select Start Date", value=datetime.now().date())
+        selected_time = st.time_input("Select Start Time", value=time(0, 0))
+        start_time_filter = datetime.combine(selected_date, selected_time)
 
         # Option to send notifications for prioritized zones
         st.write("### Notifications for Prioritized Zones")
         if st.button("Send to Prioritized Zones"):
             for zone in zone_priority:
-                concern = editable_df[editable_df['Zone'] == zone]['Edit'].values[0]
-                zone_df = merged_df[merged_df['Zone'] == zone]
+                concern = username_df[username_df['Zone'] == zone]['Name'].values
+                zonal_concern = concern[0] if len(concern) > 0 else "Unknown Concern"
+                zone_df = merged_df[(merged_df['Zone'] == zone) & (merged_df['Start Time'] >= start_time_filter)]
                 if not zone_df.empty:
                     message = f"*Motion & Vibration Alarm Alert !*\n\n*{zone}*\n\n"
-                    message = f"<b>{zone}:</b>\nAlarm came after: {datetime.now().strftime('%Y-%m-%d %I:%M %p')}\n\n"
-                    site_summary = count_entries_by_zone(zone_df)
+                    message = f"<b>{zone}:</b>\nAlarm came after: {start_time_filter.strftime('%Y-%m-%d %I:%M %p')}\n\n"
+                    site_summary = count_entries_by_zone(zone_df, start_time_filter)
                     site_summary['Total Alarm Count'] = site_summary['Motion Count'] + site_summary['Vibration Count']
                     site_summary = site_summary.sort_values(by='Total Alarm Count', ascending=False)
                     for _, row in site_summary.iterrows():
                         message += f"{row['Site Alias']}: Vibration: {row['Vibration Count']}, Motion: {row['Motion Count']} \n"
-                    message += f"\n@{concern}, please take care."
+                    message += f"\n@{zonal_concern}, please take care."
                     success = send_to_telegram(message, chat_id="-4537588687", bot_token="7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME")
                     if success:
                         st.sidebar.success(f"Data for {zone} sent to Telegram successfully!")
                     else:
                         st.sidebar.error(f"Failed to send data for {zone} to Telegram.")
-    
-    # Filtered summary based on selected time filter
-    summary_df = count_entries_by_zone(merged_df)
 
-    # Display styled table with the counts
-    st.write(render_styled_table(summary_df))
+        # Option to send notifications for other zones
+        st.write("### Notifications for Other Zones")
+        additional_zones = st.multiselect(
+            "Select Zones for Notifications",
+            options=merged_df['Zone'].unique(),
+            default=[]
+        )
+        if st.button("Send to Selected Zones"):
+            for zone in additional_zones:
+                concern = username_df[username_df['Zone'] == zone]['Name'].values
+                zonal_concern = concern[0] if len(concern) > 0 else "Unknown Concern"
+                zone_df = merged_df[(merged_df['Zone'] == zone) & (merged_df['Start Time'] >= start_time_filter)]
+                if not zone_df.empty:
+                    message = f"*Motion & Vibration Alarm Alert !*\n\n*{zone}*\n\n"
+                    message = f"<b>{zone}:</b>\nAlarm came after: {start_time_filter.strftime('%Y-%m-%d %I:%M %p')}\n\n"
+                    site_summary = count_entries_by_zone(zone_df, start_time_filter)
+                    site_summary['Total Alarm Count'] = site_summary['Motion Count'] + site_summary['Vibration Count']
+                    site_summary = site_summary.sort_values(by='Total Alarm Count', ascending=False)
+                    for _, row in site_summary.iterrows():
+                        message += f"{row['Site Alias']}: Vibration: {row['Vibration Count']}, Motion: {row['Motion Count']} \n"
+                    message += f"\n@{zonal_concern}, please take care."
+                    success = send_to_telegram(message, chat_id="-4537588687", bot_token="7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME")
+                    if success:
+                        st.sidebar.success(f"Data for {zone} sent to Telegram successfully!")
+                    else:
+                        st.sidebar.error(f"Failed to send data for {zone} to Telegram.")
+
+        # Option to update/add zonal concerns
+        st.write("### Add/Update Zonal Concern")
+        selected_zone = st.selectbox("Select Zone", options=username_df['Zone'].unique())
+        current_concern = username_df.loc[username_df['Zone'] == selected_zone, 'Name'].values[0]
+        new_concern = st.text_input("Edit Zonal Concern", value=current_concern)
+        if st.button("Update Concern"):
+            update_username_file(selected_zone, new_concern)
+
+    # Filtered summary based on selected time filter
+    summary_df = count_entries_by_zone(merged_df, start_time_filter)
+
+     # Separate prioritized and non-prioritized zones
+    prioritized_df = summary_df[summary_df['Zone'].isin(zone_priority)]
+    non_prioritized_df = summary_df[~summary_df['Zone'].isin(zone_priority)]
+
+    # Sort prioritized zones according to the order in zone_priority
+    prioritized_df['Zone'] = pd.Categorical(prioritized_df['Zone'], categories=zone_priority, ordered=True)
+    prioritized_df = prioritized_df.sort_values('Zone')
+
+    # Display prioritized zones first, sorted by total motion and vibration counts in descending order
+    for zone in prioritized_df['Zone'].unique():
+        st.write(f"### {zone}")
+        zone_df = prioritized_df[prioritized_df['Zone'] == zone]
+
+        # Sort by total motion and vibration counts (sum of both)
+        zone_df['Total Alarm Count'] = zone_df['Motion Count'] + zone_df['Vibration Count']
+        zone_df = zone_df.sort_values('Total Alarm Count', ascending=False)
+
+        # Display the total alarm count as in the original format
+        total_motion = zone_df['Motion Count'].sum()
+        total_vibration = zone_df['Vibration Count'].sum()
+        st.write(f"Total Motion Alarm count: {total_motion}")
+        st.write(f"Total Vibration Alarm count: {total_vibration}")
+
+        # Render and display the HTML table with color formatting
+        styled_table_html = render_styled_table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count']])
+        st.markdown(styled_table_html, unsafe_allow_html=True)
+
+    # Display non-prioritized zones in alphabetical order, sorted by total motion and vibration counts
+    for zone in sorted(non_prioritized_df['Zone'].unique()):
+        st.write(f"### {zone}")
+        zone_df = non_prioritized_df[non_prioritized_df['Zone'] == zone]
+
+        # Sort by total motion and vibration counts (sum of both)
+        zone_df['Total Alarm Count'] = zone_df['Motion Count'] + zone_df['Vibration Count']
+        zone_df = zone_df.sort_values('Total Alarm Count', ascending=False)
+
+        # Display the total alarm count as in the original format
+        total_motion = zone_df['Motion Count'].sum()
+        total_vibration = zone_df['Vibration Count'].sum()
+        st.write(f"Total Motion Alarm count: {total_motion}")
+        st.write(f"Total Vibration Alarm count: {total_vibration}")
+
+        # Render and display the HTML table with color formatting
+        styled_table_html = render_styled_table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count']])
+        st.markdown(styled_table_html, unsafe_allow_html=True)
+else:
+    st.write("Please upload both Motion and Vibration Report Data files.")
