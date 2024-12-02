@@ -116,7 +116,7 @@ if report_motion_file and report_vibration_file:
                     site_summary['Total Alarm Count'] = site_summary['Motion Count'] + site_summary['Vibration Count']
                     site_summary = site_summary.sort_values(by='Total Alarm Count', ascending=False)
                     for _, row in site_summary.iterrows():
-                        message += f"{row['Site Alias']}: Vibration: {row['Vibration Count']}, Motion: {row['Motion Count']} \n"
+                        message += f"#{row['Site Alias']}: Vibration: {row['Vibration Count']}, Motion: {row['Motion Count']} \n"
                     message += f"\n@{zonal_concern}, please take care."
                     success = send_to_telegram(message, chat_id="-1001509039244", bot_token="7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME")
                     if success:
@@ -143,7 +143,7 @@ if report_motion_file and report_vibration_file:
                     site_summary['Total Alarm Count'] = site_summary['Motion Count'] + site_summary['Vibration Count']
                     site_summary = site_summary.sort_values(by='Total Alarm Count', ascending=False)
                     for _, row in site_summary.iterrows():
-                        message += f"{row['Site Alias']}: Vibration: {row['Vibration Count']}, Motion: {row['Motion Count']} \n"
+                        message += f"#{row['Site Alias']}: Vibration: {row['Vibration Count']}, Motion: {row['Motion Count']} \n"
                     message += f"\n@{zonal_concern}, please take care."
                     success = send_to_telegram(message, chat_id="-1001509039244", bot_token="7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME")
                     if success:
