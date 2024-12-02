@@ -26,18 +26,17 @@ def merge_report_files(report_motion_df, report_vibration_df):
     return merged_df
 
 # Function to count occurrences of Motion and Vibration events per Site Alias and Zone
+# Optimized version of count_entries_by_zone
 def count_entries_by_zone(merged_df, start_time_filter=None):
     if start_time_filter:
         merged_df = merged_df[merged_df['Start Time'] >= start_time_filter]
 
-    motion_count = merged_df[merged_df['Type'] == 'Motion'].groupby(['Zone', 'Site Alias']).size().reset_index(name='Motion Count')
-    vibration_count = merged_df[merged_df['Type'] == 'Vibration'].groupby(['Zone', 'Site Alias']).size().reset_index(name='Vibration Count')
+    # Count Motion and Vibration in a single groupby operation
+    count_df = merged_df.groupby(['Zone', 'Site Alias', 'Type']).size().unstack(fill_value=0).reset_index()
+    count_df.columns = ['Zone', 'Site Alias', 'Motion Count', 'Vibration Count']
     
-    final_df = pd.merge(motion_count, vibration_count, on=['Zone', 'Site Alias'], how='outer').fillna(0)
-    final_df['Motion Count'] = final_df['Motion Count'].astype(int)
-    final_df['Vibration Count'] = final_df['Vibration Count'].astype(int)
-    
-    return final_df
+    return count_df
+
 
 # Styling function to color cells based on counts and theme
 def highlight_counts(row):
