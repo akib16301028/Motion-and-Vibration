@@ -133,34 +133,52 @@ if report_motion_file and report_vibration_file:
         if st.button("Update Concern"):
             update_username_file(selected_zone, new_concern)
 
-    # Main display logic for zones remains unchanged
+  # Filtered summary based on selected time filter
     summary_df = count_entries_by_zone(merged_df, start_time_filter)
+
+    # Separate prioritized and non-prioritized zones
     prioritized_df = summary_df[summary_df['Zone'].isin(zone_priority)]
     non_prioritized_df = summary_df[~summary_df['Zone'].isin(zone_priority)]
+
+    # Sort prioritized zones according to the order in zone_priority
     prioritized_df['Zone'] = pd.Categorical(prioritized_df['Zone'], categories=zone_priority, ordered=True)
     prioritized_df = prioritized_df.sort_values('Zone')
 
+    # Display prioritized zones first, sorted by total motion and vibration counts in descending order
     for zone in prioritized_df['Zone'].unique():
         st.write(f"### {zone}")
         zone_df = prioritized_df[prioritized_df['Zone'] == zone]
+
+        # Sort by total motion and vibration counts (sum of both)
         zone_df['Total Alarm Count'] = zone_df['Motion Count'] + zone_df['Vibration Count']
         zone_df = zone_df.sort_values('Total Alarm Count', ascending=False)
+
+        # Display the total alarm count as in the original format
         total_motion = zone_df['Motion Count'].sum()
         total_vibration = zone_df['Vibration Count'].sum()
         st.write(f"Total Motion Alarm count: {total_motion}")
         st.write(f"Total Vibration Alarm count: {total_vibration}")
+
+        # Render and display the HTML table with color formatting
         styled_table_html = render_styled_table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count']])
         st.markdown(styled_table_html, unsafe_allow_html=True)
 
+    # Display non-prioritized zones in alphabetical order, sorted by total motion and vibration counts
     for zone in sorted(non_prioritized_df['Zone'].unique()):
         st.write(f"### {zone}")
         zone_df = non_prioritized_df[non_prioritized_df['Zone'] == zone]
+
+        # Sort by total motion and vibration counts (sum of both)
         zone_df['Total Alarm Count'] = zone_df['Motion Count'] + zone_df['Vibration Count']
         zone_df = zone_df.sort_values('Total Alarm Count', ascending=False)
+
+        # Display the total alarm count as in the original format
         total_motion = zone_df['Motion Count'].sum()
         total_vibration = zone_df['Vibration Count'].sum()
         st.write(f"Total Motion Alarm count: {total_motion}")
         st.write(f"Total Vibration Alarm count: {total_vibration}")
+
+        # Render and display the HTML table with color formatting
         styled_table_html = render_styled_table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count']])
         st.markdown(styled_table_html, unsafe_allow_html=True)
 else:
