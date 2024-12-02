@@ -139,16 +139,13 @@ if report_motion_file and report_vibration_file:
                     else:
                         st.sidebar.error(f"Failed to send data for {zone} to Telegram.")
 
-# Function to update the 'USER NAME.xlsx' file with the new concern name
-def update_username_file(selected_zone, new_concern):
-    # Read the existing data
-    username_df = pd.read_excel("USER NAME.xlsx")
-    
-    # Update the concern name for the selected zone
-    username_df.loc[username_df['Zone'] == selected_zone, 'Name'] = new_concern
-    
-    # Save the updated data back to the file
-    username_df.to_excel("USER NAME.xlsx", index=False)
+        # Option to update/add zonal concerns
+        st.write("### Add/Update Zonal Concern")
+        selected_zone = st.selectbox("Select Zone", options=username_df['Zone'].unique())
+        current_concern = username_df.loc[username_df['Zone'] == selected_zone, 'Name'].values[0]
+        new_concern = st.text_input("Edit Zonal Concern", value=current_concern)
+        if st.button("Update Concern"):
+            update_username_file(selected_zone, new_concern)
 
   # Filtered summary based on selected time filter
     summary_df = count_entries_by_zone(merged_df, start_time_filter)
