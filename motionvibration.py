@@ -49,19 +49,19 @@ def send_to_telegram(message, chat_id, bot_token):
     response = requests.post(url, data=payload)
     return response.ok
 
-# Streamlit app
-st.title('PulseForge')
-
-# File upload section (only for report data)
-report_motion_file = st.file_uploader("Upload the Motion Report Data", type=["xlsx"])
-report_vibration_file = st.file_uploader("Upload the Vibration Report Data", type=["xlsx"])
-
 # Function to update the username file
 def update_username_file(zone, new_concern):
     global username_df
     username_df.loc[username_df['Zone'] == zone, 'Name'] = new_concern
     username_df.to_excel(username_file_path, index=False)  # Save changes back to the file
     st.success(f"Zonal concern for {zone} updated to {new_concern}.")
+
+# Streamlit app
+st.title('PulseForge')
+
+# File upload section (only for report data)
+report_motion_file = st.file_uploader("Upload the Motion Report Data", type=["xlsx"])
+report_vibration_file = st.file_uploader("Upload the Vibration Report Data", type=["xlsx"])
 
 if report_motion_file and report_vibration_file:
     report_motion_df = pd.read_excel(report_motion_file, header=2)
@@ -132,6 +132,20 @@ if report_motion_file and report_vibration_file:
         new_concern = st.text_input("Edit Zonal Concern", value=current_concern)
         if st.button("Update Concern"):
             update_username_file(selected_zone, new_concern)
+
+    # Display Motion and Vibration alarms
+    st.header("Alarm Summary")
+    summary_df = count_entries_by_zone(merged_df, start_time_filter)
+
+    # Display tables for prioritized and non-prioritized zones
+    prioritized_df = summary_df[summary_df['Zone'].isin(zone_priority)]
+    non_prioritized_df = summary_df[~summary_df['Zone'].isin(zone_priority)]
+
+    st.subheader("Prioritized Zones")
+    st.dataframe(prioritized_df)
+
+    st.subheader("Non-Prioritized Zones")
+    st.dataframe(non_prioritized_df)
 
 else:
     st.write("Please upload both Motion and Vibration Report Data files.")
