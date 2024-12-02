@@ -159,25 +159,29 @@ if report_motion_file and report_vibration_file:
         if "username_data" not in st.session_state:
             st.session_state.username_data = username_df  # Initialize session state for concerns
             
-       # Editable fields for zone concerns
+# Editable fields for zone concerns
 editable_df = st.session_state.username_data.copy()
 
 # Modify this line to label as "Edit Zone" for all zones
 editable_df['Edit'] = editable_df['Name'].apply(lambda x: st.text_input(f'Edit Zone for {x}', value=x))
 
+# Display the editable zones in a table format
+st.write("### Edit Zonal Concerns")
 
+# Render the table in the left panel
+st.sidebar.table(editable_df[['Zone', 'Edit']])
 
-        # Update the concerns with new values from the editable fields
-        if st.button("Update All Concerns"):
-            for idx, row in editable_df.iterrows():
-                if row['Edit'] != row['Name']:
-                    update_username_file(row['Zone'], row['Edit'])
-            st.success("Concerns updated successfully!")
-
-        # Display the updated table for the zones and concerns
-        st.write("### Zones and Their Concerns")
-        st.write(editable_df.drop(columns=['Name']))  # Show the edited version with text inputs
-
+# Button to update all concerns
+if st.button("Update All Concerns"):
+    # Update the concerns in the original dataset
+    for i, row in editable_df.iterrows():
+        selected_zone = row['Zone']
+        new_concern = row['Edit']
+        
+        # Check if the concern has changed
+        if new_concern != username_df.loc[username_df['Zone'] == selected_zone, 'Name'].values[0]:
+            update_username_file(selected_zone, new_concern)
+            st.sidebar.success(f"Concern for {selected_zone} updated to {new_concern}")
   # Filtered summary based on selected time filter
     summary_df = count_entries_by_zone(merged_df, start_time_filter)
 
