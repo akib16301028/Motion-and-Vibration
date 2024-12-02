@@ -151,13 +151,28 @@ if report_motion_file and report_vibration_file:
                     else:
                         st.sidebar.error(f"Failed to send data for {zone} to Telegram.")
 
-        # Option to update/add zonal concerns
-        st.write("### Add/Update Zonal Concern")
-        selected_zone = st.selectbox("Select Zone", options=username_df['Zone'].unique())
-        current_concern = username_df.loc[username_df['Zone'] == selected_zone, 'Name'].values[0]
-        new_concern = st.text_input("Edit Zonal Concern", value=current_concern)
-        if st.button("Update Concern"):
-            update_username_file(selected_zone, new_concern)
+        # Sidebar options
+    with st.sidebar:
+        st.header("Zonal Concerns")
+        
+        # Display zones and their concerns in a table
+        if "username_data" not in st.session_state:
+            st.session_state.username_data = username_df  # Initialize session state for concerns
+            
+        # Editable fields for zone concerns
+        editable_df = st.session_state.username_data.copy()
+        editable_df['Edit'] = editable_df['Name'].apply(lambda x: st.text_input(f'Edit {x}', value=x))
+
+        # Update the concerns with new values from the editable fields
+        if st.button("Update All Concerns"):
+            for idx, row in editable_df.iterrows():
+                if row['Edit'] != row['Name']:
+                    update_username_file(row['Zone'], row['Edit'])
+            st.success("Concerns updated successfully!")
+
+        # Display the updated table for the zones and concerns
+        st.write("### Zones and Their Concerns")
+        st.write(editable_df.drop(columns=['Name']))  # Show the edited version with text inputs
 
   # Filtered summary based on selected time filter
     summary_df = count_entries_by_zone(merged_df, start_time_filter)
