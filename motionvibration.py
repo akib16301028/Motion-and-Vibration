@@ -104,7 +104,7 @@ if report_motion_file and report_vibration_file:
                     for _, row in site_summary.iterrows():
                         message += f"{row['Site Alias']}: Vibration: {row['Vibration Count']}, Motion: {row['Motion Count']} \n"
                     message += f"\n@{zonal_concern}, please take care."
-                    success = send_to_telegram(message, chat_id="--4537588687", bot_token="7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME")
+                    success = send_to_telegram(message, chat_id="-4537588687", bot_token="7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME")
                     if success:
                         st.sidebar.success(f"Data for {zone} sent to Telegram successfully!")
                     else:
