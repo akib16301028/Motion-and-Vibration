@@ -99,6 +99,32 @@ if report_motion_file and report_vibration_file:
                     else:
                         st.sidebar.error(f"Failed to send data for {zone} to Telegram.")
 
+        # Option to send notifications for other zones
+        st.write("### Notifications for Other Zones")
+        additional_zones = st.multiselect(
+            "Select Zones for Notifications",
+            options=merged_df['Zone'].unique(),
+            default=[]
+        )
+        if st.button("Send to Selected Zones"):
+            for zone in additional_zones:
+                concern = username_df[username_df['Zone'] == zone]['Name'].values
+                zonal_concern = concern[0] if len(concern) > 0 else "Unknown Concern"
+                zone_df = merged_df[(merged_df['Zone'] == zone) & (merged_df['Start Time'] >= start_time_filter)]
+                if not zone_df.empty:
+                    message = f"<b>{zone}:</b>\nAlarm came after: {start_time_filter.strftime('%Y-%m-%d %I:%M %p')}\n\n"
+                    site_summary = count_entries_by_zone(zone_df, start_time_filter)
+                    site_summary['Total Alarm Count'] = site_summary['Motion Count'] + site_summary['Vibration Count']
+                    site_summary = site_summary.sort_values(by='Total Alarm Count', ascending=False)
+                    for _, row in site_summary.iterrows():
+                        message += f"{row['Site Alias']}: Vibration: {row['Vibration Count']}, Motion: {row['Motion Count']} \n"
+                    message += f"\n@{zonal_concern}, please take care."
+                    success = send_to_telegram(message, chat_id="-4537588687", bot_token="7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME")
+                    if success:
+                        st.sidebar.success(f"Data for {zone} sent to Telegram successfully!")
+                    else:
+                        st.sidebar.error(f"Failed to send data for {zone} to Telegram.")
+
         # Option to update/add zonal concerns
         st.write("### Add/Update Zonal Concern")
         selected_zone = st.selectbox("Select Zone", options=username_df['Zone'].unique())
