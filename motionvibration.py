@@ -98,6 +98,7 @@ if report_motion_file and report_vibration_file:
                 zonal_concern = concern[0] if len(concern) > 0 else "Unknown Concern"
                 zone_df = merged_df[(merged_df['Zone'] == zone) & (merged_df['Start Time'] >= start_time_filter)]
                 if not zone_df.empty:
+                    message = f"*Motion & Vibration Alarm Alert !*\n\n*{zone}*\n\n"
                     message = f"<b>{zone}:</b>\nAlarm came after: {start_time_filter.strftime('%Y-%m-%d %I:%M %p')}\n\n"
                     site_summary = count_entries_by_zone(zone_df, start_time_filter)
                     site_summary['Total Alarm Count'] = site_summary['Motion Count'] + site_summary['Vibration Count']
@@ -124,6 +125,7 @@ if report_motion_file and report_vibration_file:
                 zonal_concern = concern[0] if len(concern) > 0 else "Unknown Concern"
                 zone_df = merged_df[(merged_df['Zone'] == zone) & (merged_df['Start Time'] >= start_time_filter)]
                 if not zone_df.empty:
+                    message = f"*Motion & Vibration Alarm Alert !*\n\n*{zone}*\n\n"
                     message = f"<b>{zone}:</b>\nAlarm came after: {start_time_filter.strftime('%Y-%m-%d %I:%M %p')}\n\n"
                     site_summary = count_entries_by_zone(zone_df, start_time_filter)
                     site_summary['Total Alarm Count'] = site_summary['Motion Count'] + site_summary['Vibration Count']
