@@ -152,13 +152,31 @@ if report_motion_file and report_vibration_file:
                     else:
                         st.sidebar.error(f"Failed to send data for {zone} to Telegram.")
 
-        # Option to update/add zonal concerns
-        st.write("### Add/Remove Zonal Concern")
-        selected_zone = st.selectbox("Select Zone", options=username_df['Zone'].unique())
-        current_concern = username_df.loc[username_df['Zone'] == selected_zone, 'Name'].values[0]
-        new_concern = st.text_input("Edit Zonal Concern", value=current_concern)
-        if st.button("Update Concern"):
-            update_username_file(selected_zone, new_concern)
+       # Load the original repository Excel file to get default values
+default_username_df = pd.read_excel("USER NAME.xlsx")  # This assumes the file already contains the default values
+
+# Option to update/add/reset zonal concerns
+st.write("### Add/Remove/Reset Zonal Concern")
+selected_zone = st.selectbox("Select Zone", options=username_df['Zone'].unique())
+current_concern = username_df.loc[username_df['Zone'] == selected_zone, 'Name'].values[0]
+new_concern = st.text_input("Edit Zonal Concern", value=current_concern)
+
+col1, col2 = st.columns(2)
+
+with col1:
+    if st.button("Update Concern"):
+        update_username_file(selected_zone, new_concern)
+        st.success(f"Zonal concern for {selected_zone} updated to '{new_concern}'.")
+
+with col2:
+    if st.button("Reset to Default"):
+        # Fetch the default concern for the selected zone from the original repository Excel file
+        default_concern = default_username_df.loc[default_username_df['Zone'] == selected_zone, 'Name'].values[0]
+        
+        # Update the current username DataFrame with the default value
+        update_username_file(selected_zone, default_concern)
+        st.success(f"Zonal concern for {selected_zone} reset to the default value ('{default_concern}').")
+
 
     # Filtered summary based on selected time filter
     summary_df = count_entries_by_zone(merged_df, start_time_filter)
