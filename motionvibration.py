@@ -1,182 +1,186 @@
 import pandas as pd
 import streamlit as st
-from datetime import datetime, time
-import requests
+from datetime import datetime
+import requests  # For sending Telegram notifications
 
-# Load username data from repository (ensure this file is not too large)
-username_df = pd.read_excel("USER NAME.xlsx")
+# Function to extract the first part of the SiteName before the first underscore
+def extract_site(site_name):
+    return site_name.split('_')[0] if pd.notnull(site_name) and '_' in site_name else site_name
 
-# Load the original repository Excel file to get default values
-default_username_df = pd.read_excel("USER NAME.xlsx")
+# Function to merge RMS and Current Alarms data
+def merge_rms_alarms(rms_df, alarms_df):
+    alarms_df['Start Time'] = alarms_df['Alarm Time']
+    alarms_df['End Time'] = pd.NaT  # No End Time in Current Alarms, set to NaT
 
-# Define zone priority order for display
-zone_priority = ["Sylhet", "Gazipur", "Shariatpur", "Narayanganj", "Faridpur", "Mymensingh"]
+    rms_columns = ['Site', 'Site Alias', 'Zone', 'Cluster', 'Start Time', 'End Time']
+    alarms_columns = ['Site', 'Site Alias', 'Zone', 'Cluster', 'Start Time', 'End Time']
 
-# Function to preprocess report files
-def preprocess_report(df, alarm_type):
-    df["Type"] = alarm_type  # Specify type as either 'Motion' or 'Vibration'
-    df['Start Time'] = pd.to_datetime(df['Start Time'], errors='coerce')
-    df['End Time'] = pd.to_datetime(df['End Time'], errors='coerce')
-    return df
-
-# Function to merge motion and vibration data from report files
-def merge_report_files(report_motion_df, report_vibration_df):
-    report_motion_df = preprocess_report(report_motion_df, 'Motion')
-    report_vibration_df = preprocess_report(report_vibration_df, 'Vibration')
-    
-    # Merging the two reports
-    merged_df = pd.concat([report_motion_df, report_vibration_df], ignore_index=True)
+    merged_df = pd.concat([rms_df[rms_columns], alarms_df[alarms_columns]], ignore_index=True)
     return merged_df
 
-# Function to count occurrences of Motion and Vibration events per Site Alias and Zone
-def count_entries_by_zone(merged_df, start_time_filter=None):
-    if start_time_filter:
-        merged_df = merged_df[merged_df['Start Time'] >= start_time_filter]
+# Function to find mismatches between Site Access and merged RMS/Alarms dataset
+def find_mismatches(site_access_df, merged_df):
+    site_access_df['SiteName_Extracted'] = site_access_df['SiteName'].apply(extract_site)
+    merged_comparison_df = pd.merge(merged_df, site_access_df, left_on='Site', right_on='SiteName_Extracted', how='left', indicator=True)
+    mismatches_df = merged_comparison_df[merged_comparison_df['_merge'] == 'left_only']
+    mismatches_df['End Time'] = mismatches_df['End Time'].fillna('Not Closed')  # Replace NaT with Not Closed
+    return mismatches_df
 
-    motion_count = merged_df[merged_df['Type'] == 'Motion'].groupby(['Zone', 'Site Alias']).size().reset_index(name='Motion Count')
-    vibration_count = merged_df[merged_df['Type'] == 'Vibration'].groupby(['Zone', 'Site Alias']).size().reset_index(name='Vibration Count')
-    
-    final_df = pd.merge(motion_count, vibration_count, on=['Zone', 'Site Alias'], how='outer').fillna(0)
-    final_df['Motion Count'] = final_df['Motion Count'].astype(int)
-    final_df['Vibration Count'] = final_df['Vibration Count'].astype(int)
-    
-    return final_df
+# Function to find matched sites and their status
+def find_matched_sites(site_access_df, merged_df):
+    site_access_df['SiteName_Extracted'] = site_access_df['SiteName'].apply(extract_site)
+    matched_df = pd.merge(site_access_df, merged_df, left_on='SiteName_Extracted', right_on='Site', how='inner')
+    matched_df['StartDate'] = pd.to_datetime(matched_df['StartDate'], errors='coerce')
+    matched_df['EndDate'] = pd.to_datetime(matched_df['EndDate'], errors='coerce')
+    matched_df['Start Time'] = pd.to_datetime(matched_df['Start Time'], errors='coerce')
+    matched_df['End Time'] = pd.to_datetime(matched_df['End Time'], errors='coerce')
+    matched_df['Status'] = matched_df.apply(lambda row: 'Expired' if pd.notnull(row['End Time']) and row['End Time'] > row['EndDate'] else 'Valid', axis=1)
+    return matched_df
 
-# Styling function to color cells based on counts and theme
-def highlight_counts(row):
-    theme = "dark" if st.get_option("theme.base") == "dark" else "light"
-    styles = []
-    for val in [row['Motion Count'], row['Vibration Count']]:
-        if val >= 10:
-            styles.append(f'background-color: {"#8B0000" if theme == "dark" else "lightcoral"}; color: white;')
-        elif val > 0:
-            styles.append(f'background-color: {"#505050" if theme == "dark" else "lightgray"};')
-        else:
-            styles.append('')
-    return styles
+# Function to display grouped data by Cluster and Zone in a table
+def display_grouped_data(grouped_df, title):
+    st.write(title)
+    clusters = grouped_df['Cluster'].unique()
 
-# Function to render DataFrame as an HTML table with color formatting
-def render_styled_table(df):
-    styled_df = df.style.apply(lambda row: highlight_counts(row), axis=1, subset=['Motion Count', 'Vibration Count'])
-    styled_df = styled_df.set_properties(**{'font-size': '12px', 'padding': '4px'}).hide(axis='index')
-    return styled_df.to_html()
+    for cluster in clusters:
+        st.markdown(f"**{cluster}**")
+        cluster_df = grouped_df[grouped_df['Cluster'] == cluster]
+        zones = cluster_df['Zone'].unique()
 
-# Function to send data to Telegram
-def send_to_telegram(message, chat_id, bot_token):
+        for zone in zones:
+            st.markdown(f"***<span style='font-size:14px;'>{zone}</span>***", unsafe_allow_html=True)
+            zone_df = cluster_df[cluster_df['Zone'] == zone]
+            display_df = zone_df[['Site Alias', 'Start Time', 'End Time']].copy()
+            display_df['Site Alias'] = display_df['Site Alias'].where(display_df['Site Alias'] != display_df['Site Alias'].shift())
+            display_df = display_df.fillna('')
+            st.table(display_df)
+        st.markdown("---")
+
+# Function to display matched sites with status
+def display_matched_sites(matched_df):
+    color_map = {'Valid': 'background-color: lightgreen;', 'Expired': 'background-color: lightcoral;'}
+    def highlight_status(status):
+        return color_map.get(status, '')
+
+    styled_df = matched_df[['RequestId', 'Site Alias', 'Start Time', 'End Time', 'EndDate', 'Status']].style.applymap(highlight_status, subset=['Status'])
+    st.write("Matched Sites with Status:")
+    st.dataframe(styled_df)
+
+# Function to send Telegram notification
+def send_telegram_notification(message, bot_token, chat_id):
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     payload = {
         "chat_id": chat_id,
         "text": message,
-        "parse_mode": "HTML"
+        "parse_mode": "Markdown"  # Use Markdown for plain text
     }
-    response = requests.post(url, data=payload)
-    return response.ok
-
-# Function to update the 'USER NAME.xlsx' file with the new concern name
-def update_username_file(selected_zone, new_concern):
-    # Read the existing data
-    username_df = pd.read_excel("USER NAME.xlsx")
-    
-    # Update the concern name for the selected zone
-    username_df.loc[username_df['Zone'] == selected_zone, 'Name'] = new_concern
-    
-    # Save the updated data back to the file
-    username_df.to_excel("USER NAME.xlsx", index=False)
+    response = requests.post(url, json=payload)
+    return response.status_code == 200
 
 # Streamlit app
-st.title('PulseForge')
+st.title('Odin-s-Eye')
 
-# File upload section (only for report data)
-report_motion_file = st.file_uploader("Upload the Motion Report Data", type=["xlsx"])
-report_vibration_file = st.file_uploader("Upload the Vibration Report Data", type=["xlsx"])
+# Add a sidebar to display the USER NAME file
+st.sidebar.title("File Information")
 
-if report_motion_file and report_vibration_file:
-    report_motion_df = pd.read_excel(report_motion_file, header=2)
-    report_vibration_df = pd.read_excel(report_vibration_file, header=2)
+try:
+    user_name_df = pd.read_csv("USER NAME.csv")  # Adjust path as needed
+    st.sidebar.write("**USER NAME File Content:**")
+    st.sidebar.table(user_name_df)
+except FileNotFoundError:
+    st.sidebar.error("USER NAME file not found. Ensure it exists in the repository.")
 
-    merged_df = merge_report_files(report_motion_df, report_vibration_df)
+site_access_file = st.file_uploader("Upload the Site Access Excel", type=["xlsx"])
+rms_file = st.file_uploader("Upload the RMS Excel", type=["xlsx"])
+current_alarms_file = st.file_uploader("Upload the Current Alarms Excel", type=["xlsx"])
 
-    # Sidebar options
-    with st.sidebar:
-        st.header("Notifications")
-        
-        # Date and time filter
-        selected_date = st.date_input("Select Start Date", value=datetime.now().date())
-        selected_time = st.time_input("Select Start Time", value=time(0, 0))
-        start_time_filter = datetime.combine(selected_date, selected_time)
+if "filter_time" not in st.session_state:
+    st.session_state.filter_time = datetime.now().time()
+if "filter_date" not in st.session_state:
+    st.session_state.filter_date = datetime.now().date()
+if "status_filter" not in st.session_state:
+    st.session_state.status_filter = "All"
 
-        # Option to send notifications for prioritized zones
-        st.write("### Notifications for Prioritized Zones")
-        if st.button("Send to Prioritized Zones"):
-            for zone in zone_priority:
-                concern = username_df[username_df['Zone'] == zone]['Name'].values
-                zonal_concern = concern[0] if len(concern) > 0 else "Unknown Concern"
-                zone_df = merged_df[(merged_df['Zone'] == zone) & (merged_df['Start Time'] >= start_time_filter)]
-                if not zone_df.empty:
-                    message = "<b>Motion & Vibration Alarm Alert</b>\n\n"
-                    message += f"<b>{zone}:</b>\nAlarm came after: {start_time_filter.strftime('%Y-%m-%d %I:%M %p')}\n\n"
-                    site_summary = count_entries_by_zone(zone_df, start_time_filter)
-                    site_summary['Total Alarm Count'] = site_summary['Motion Count'] + site_summary['Vibration Count']
-                    site_summary = site_summary.sort_values(by='Total Alarm Count', ascending=False)
-                    for _, row in site_summary.iterrows():
-                        message += f"#{row['Site Alias']}: Vibration: {row['Vibration Count']}, Motion: {row['Motion Count']} \n"
-                    message += f"\n@{zonal_concern}, please take care."
-                    success = send_to_telegram(message, chat_id="-1001509039244", bot_token="7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME")
-                    if success:
-                        st.sidebar.success(f"Data for {zone} sent to Telegram successfully!")
-                    else:
-                        st.sidebar.error(f"Failed to send data for {zone} to Telegram.")
+if site_access_file and rms_file and current_alarms_file:
+    site_access_df = pd.read_excel(site_access_file)
+    rms_df = pd.read_excel(rms_file, header=2)
+    current_alarms_df = pd.read_excel(current_alarms_file, header=2)
 
-        # Option to update/add/reset zonal concerns
-        st.write("### Add/Remove/Reset Zonal Concern")
-        selected_zone = st.selectbox("Select Zone", options=username_df['Zone'].unique())
-        current_concern = username_df.loc[username_df['Zone'] == selected_zone, 'Name'].values[0]
-        new_concern = st.text_input("Edit Zonal Concern", value=current_concern)
+    merged_rms_alarms_df = merge_rms_alarms(rms_df, current_alarms_df)
 
-        col1, col2 = st.columns(2)
+    # Filter inputs (date and time)
+    selected_date = st.date_input("Select Date", value=st.session_state.filter_date)
+    selected_time = st.time_input("Select Time", value=st.session_state.filter_time)
 
-        with col1:
-            if st.button("Update Concern"):
-                update_username_file(selected_zone, new_concern)
-                st.success(f"Zonal concern for {selected_zone} updated to '{new_concern}'.")
+    # Button to clear filters
+    if st.button("Clear Filters"):
+        st.session_state.filter_date = datetime.now().date()
+        st.session_state.filter_time = datetime.now().time()
+        st.session_state.status_filter = "All"
 
-        with col2:
-            if st.button("Reset to Default"):
-                default_concern = default_username_df.loc[default_username_df['Zone'] == selected_zone, 'Name'].values[0]
-                update_username_file(selected_zone, default_concern)
-                st.success(f"Zonal concern for {selected_zone} reset to the default value ('{default_concern}').")
+    # Update session state only when the user changes time or date
+    if selected_date != st.session_state.filter_date:
+        st.session_state.filter_date = selected_date
+    if selected_time != st.session_state.filter_time:
+        st.session_state.filter_time = selected_time
 
-    # Filtered summary based on selected time filter
-    summary_df = count_entries_by_zone(merged_df, start_time_filter)
+    # Combine selected date and time into a datetime object
+    filter_datetime = datetime.combine(st.session_state.filter_date, st.session_state.filter_time)
 
-    # Prioritized and non-prioritized zones
-    prioritized_df = summary_df[summary_df['Zone'].isin(zone_priority)]
-    non_prioritized_df = summary_df[~summary_df['Zone'].isin(zone_priority)]
+    # Process mismatches
+    mismatches_df = find_mismatches(site_access_df, merged_rms_alarms_df)
+    mismatches_df['Start Time'] = pd.to_datetime(mismatches_df['Start Time'], errors='coerce')
+    filtered_mismatches_df = mismatches_df[mismatches_df['Start Time'] > filter_datetime]
 
-    # Sorting and displaying prioritized zones
-    prioritized_df['Zone'] = pd.Categorical(prioritized_df['Zone'], categories=zone_priority, ordered=True)
-    prioritized_df = prioritized_df.sort_values('Zone')
+    # Process matches
+    matched_df = find_matched_sites(site_access_df, merged_rms_alarms_df)
 
-    for zone in prioritized_df['Zone'].unique():
-        st.write(f"### {zone}")
-        zone_df = prioritized_df[prioritized_df['Zone'] == zone]
-        zone_df['Total Alarm Count'] = zone_df['Motion Count'] + zone_df['Vibration Count']
-        zone_df = zone_df.sort_values('Total Alarm Count', ascending=False)
-        total_motion = zone_df['Motion Count'].sum()
-        total_vibration = zone_df['Vibration Count'].sum()
-        st.write(f"Total Motion Alarm count: {total_motion}")
-        st.write(f"Total Vibration Alarm count: {total_vibration}")
-        styled_table_html = render_styled_table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count']])
-        st.markdown(styled_table_html, unsafe_allow_html=True)
+    # Apply filtering conditions
+    status_filter_condition = matched_df['Status'] == st.session_state.status_filter if st.session_state.status_filter != "All" else True
+    time_filter_condition = (matched_df['Start Time'] > filter_datetime) | (matched_df['End Time'] > filter_datetime)
 
-    for zone in sorted(non_prioritized_df['Zone'].unique()):
-        st.write(f"### {zone}")
-        zone_df = non_prioritized_df[non_prioritized_df['Zone'] == zone]
-        zone_df['Total Alarm Count'] = zone_df['Motion Count'] + zone_df['Vibration Count']
-        zone_df = zone_df.sort_values('Total Alarm Count', ascending=False)
-        total_motion = zone_df['Motion Count'].sum()
-        total_vibration = zone_df['Vibration Count'].sum()
-        st.write(f"Total Motion Alarm count: {total_motion}")
-        st.write(f"Total Vibration Alarm count: {total_vibration}")
-        styled_table_html = render_styled_table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count']])
-        st.markdown(styled_table_html, unsafe_allow_html=True)
+    # Apply filters to matched data
+    filtered_matched_df = matched_df[status_filter_condition & time_filter_condition]
+
+    # Add the status filter dropdown right before the matched sites table
+    status_filter = st.selectbox("Filter by Status", options=["All", "Valid", "Expired"], index=0)
+
+    # Update session state for status filter
+    if status_filter != st.session_state.status_filter:
+        st.session_state.status_filter = status_filter
+
+    # Move the "Send Telegram Notification" button to the top
+    if st.button("Send Telegram Notification"):
+        zones = filtered_mismatches_df['Zone'].unique()
+        bot_token = "7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME"
+        chat_id = "-1001509039244"
+
+        for zone in zones:
+            zone_df = filtered_mismatches_df[filtered_mismatches_df['Zone'] == zone]
+            message = f"*Door Open Alert*\n\n*{zone}*\n\n"  # Bold "Door Open Notification"
+            site_aliases = zone_df['Site Alias'].unique()
+            for site_alias in site_aliases:
+                site_df = zone_df[zone_df['Site Alias'] == site_alias]
+                message += f"#{site_alias}\n"
+                for _, row in site_df.iterrows():
+                    end_time_display = row['End Time'] if row['End Time'] != 'Not Closed' else 'Not Closed'
+                    message += f"Start Time: {row['Start Time']} End Time: {end_time_display}\n"
+                message += "\n"
+            if send_telegram_notification(message, bot_token, chat_id):
+                st.success(f"Notification for zone '{zone}' sent successfully!")
+            else:
+                st.error(f"Failed to send notification for zone '{zone}'.")
+
+    # Display mismatches
+    if not filtered_mismatches_df.empty:
+        st.write(f"Mismatched Sites (After {filter_datetime}) grouped by Cluster and Zone:")
+        display_grouped_data(filtered_mismatches_df, "Filtered Mismatched Sites")
+    else:
+        st.write(f"No mismatches found after {filter_datetime}. Showing all mismatched sites.")
+        display_grouped_data(mismatches_df, "All Mismatched Sites")
+
+    # Display matched sites
+    display_matched_sites(filtered_matched_df)
+
+else:
+    st.write("Please upload all required files.")
