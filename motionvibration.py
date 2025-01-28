@@ -25,15 +25,15 @@ def merge_report_files(report_motion_df, report_vibration_df):
     merged_df = pd.concat([report_motion_df, report_vibration_df], ignore_index=True)
     return merged_df
 
-# Function to count occurrences of Motion and Vibration events per Site Alias and Zone
+# Function to count occurrences of Motion and Vibration events per Site Alias  and Zone
 def count_entries_by_zone(merged_df, start_time_filter=None):
     if start_time_filter:
         merged_df = merged_df[merged_df['Start Time'] >= start_time_filter]
 
-    motion_count = merged_df[merged_df['Type'] == 'Motion'].groupby(['Zone', 'Site Alias']).size().reset_index(name='Motion Count')
-    vibration_count = merged_df[merged_df['Type'] == 'Vibration'].groupby(['Zone', 'Site Alias']).size().reset_index(name='Vibration Count')
+    motion_count = merged_df[merged_df['Type'] == 'Motion'].groupby(['Zone', 'Site Alias ']).size().reset_index(name='Motion Count')
+    vibration_count = merged_df[merged_df['Type'] == 'Vibration'].groupby(['Zone', 'Site Alias ']).size().reset_index(name='Vibration Count')
     
-    final_df = pd.merge(motion_count, vibration_count, on=['Zone', 'Site Alias'], how='outer').fillna(0)
+    final_df = pd.merge(motion_count, vibration_count, on=['Zone', 'Site Alias '], how='outer').fillna(0)
     final_df['Motion Count'] = final_df['Motion Count'].astype(int)
     final_df['Vibration Count'] = final_df['Vibration Count'].astype(int)
     
@@ -116,7 +116,7 @@ if report_motion_file and report_vibration_file:
                     site_summary['Total Alarm Count'] = site_summary['Motion Count'] + site_summary['Vibration Count']
                     site_summary = site_summary.sort_values(by='Total Alarm Count', ascending=False)
                     for _, row in site_summary.iterrows():
-                        message += f"#{row['Site Alias']}: Vibration: {row['Vibration Count']}, Motion: {row['Motion Count']} \n"
+                        message += f"#{row['Site Alias ']}: Vibration: {row['Vibration Count']}, Motion: {row['Motion Count']} \n"
                     message += f"\n@{zonal_concern}, please take care."
                     success = send_to_telegram(message, chat_id="-1001509039244", bot_token="7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME")
                     if success:
@@ -144,7 +144,7 @@ if report_motion_file and report_vibration_file:
                     site_summary['Total Alarm Count'] = site_summary['Motion Count'] + site_summary['Vibration Count']
                     site_summary = site_summary.sort_values(by='Total Alarm Count', ascending=False)
                     for _, row in site_summary.iterrows():
-                        message += f"#{row['Site Alias']}: Vibration: {row['Vibration Count']}, Motion: {row['Motion Count']} \n"
+                        message += f"#{row['Site Alias ']}: Vibration: {row['Vibration Count']}, Motion: {row['Motion Count']} \n"
                     message += f"\n@{zonal_concern}, please take care."
                     success = send_to_telegram(message, chat_id="-1001509039244", bot_token="7145427044:AAGb-CcT8zF_XYkutnqqCdNLqf6qw4KgqME")
                     if success:
@@ -187,7 +187,7 @@ if report_motion_file and report_vibration_file:
         st.write(f"Total Vibration Alarm count: {total_vibration}")
 
         # Render and display the HTML table with color formatting
-        styled_table_html = render_styled_table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count']])
+        styled_table_html = render_styled_table(zone_df[['Site Alias ', 'Motion Count', 'Vibration Count']])
         st.markdown(styled_table_html, unsafe_allow_html=True)
 
     # Display non-prioritized zones in alphabetical order, sorted by total motion and vibration counts
@@ -206,7 +206,7 @@ if report_motion_file and report_vibration_file:
         st.write(f"Total Vibration Alarm count: {total_vibration}")
 
         # Render and display the HTML table with color formatting
-        styled_table_html = render_styled_table(zone_df[['Site Alias', 'Motion Count', 'Vibration Count']])
+        styled_table_html = render_styled_table(zone_df[['Site Alias ', 'Motion Count', 'Vibration Count']])
         st.markdown(styled_table_html, unsafe_allow_html=True)
 else:
     st.write("Please upload both Motion and Vibration Report Data files.")
